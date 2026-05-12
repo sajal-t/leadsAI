@@ -2,6 +2,9 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { AppShell } from "@/components/app/app-shell";
+import { LoadingState } from "@/components/app/loading-state";
+import { PageHeader } from "@/components/app/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -50,10 +53,10 @@ export default function NewCampaignPage() {
   };
 
   return (
-    <main className="mx-auto w-full max-w-xl p-6">
-      <Card>
+    <AppShell><PageHeader title="Find local businesses with no website found" subtitle="Enter a niche and city. LocalLead AI will search Google Places and surface businesses that do not have a website listed." /><main className="grid gap-4 lg:grid-cols-2">
+      <Card className="rounded-2xl border-border/50 bg-card/50">
         <CardHeader>
-          <CardTitle>Create campaign</CardTitle>
+          <CardTitle>Lead Finder</CardTitle>
         </CardHeader>
         <CardContent>
           <form className="space-y-4" onSubmit={onSubmit}>
@@ -85,6 +88,7 @@ export default function NewCampaignPage() {
               </p>
             </div>
             <Button disabled={loading}>{loading ? "Creating…" : "Find Leads"}</Button>
+            {loading ? <LoadingState text="Searching Google Places… Checking website status… Saving leads…" /> : null}
             {message && (
               <p className={`text-sm ${message.toLowerCase().includes("failed") || message.toLowerCase().includes("wrong") ? "text-red-600" : "text-zinc-600"}`}>
                 {message}
@@ -93,6 +97,7 @@ export default function NewCampaignPage() {
           </form>
         </CardContent>
       </Card>
-    </main>
+          <Card className="rounded-2xl border-border/50 bg-card/50"><CardHeader><CardTitle>How it works</CardTitle></CardHeader><CardContent className="space-y-2 text-sm text-muted-foreground"><p>Step 1: Search Google Places</p><p>Step 2: Filter “No website found”</p><p>Step 3: Start calling with AI scripts</p><p>Step 4: Generate website previews</p></CardContent></Card>
+</main></AppShell>
   );
 }
