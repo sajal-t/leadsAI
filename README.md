@@ -31,7 +31,7 @@ cp .env.example .env.local
 ```
 
 3. Fill all environment variables in `.env.local`.
-4. Run the SQL migration from `supabase/migrations/001_locallead_ai.sql` in Supabase SQL editor.
+4. Run SQL migrations in Supabase SQL editor (in order): `supabase/migrations/001_locallead_ai.sql`, then `supabase/migrations/002_campaign_max_sample_size.sql` (stores **Target sample size** on campaigns). If you skip `002`, campaign creation still works; sample size defaults until you add the column.
 5. Start dev server:
 
 ```bash

@@ -11,6 +11,7 @@ export default function NewCampaignPage() {
   const [niche, setNiche] = useState("");
   const [city, setCity] = useState("");
   const [radius, setRadius] = useState("");
+  const [maxSampleSize, setMaxSampleSize] = useState("500");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const router = useRouter();
@@ -20,10 +21,16 @@ export default function NewCampaignPage() {
     setLoading(true);
     setMessage("Creating campaign...");
     try {
+      const sample = Number(maxSampleSize);
       const campaignRes = await fetch("/api/campaigns", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ niche, city, radius: radius ? Number(radius) : null }),
+        body: JSON.stringify({
+          niche,
+          city,
+          radius: radius ? Number(radius) : null,
+          maxSampleSize: Number.isFinite(sample) && sample >= 60 ? sample : 500,
+        }),
       });
       if (!campaignRes.ok) {
         const err = await campaignRes.json().catch(() => null);
@@ -32,26 +39,8 @@ export default function NewCampaignPage() {
       }
 
       const campaign = await campaignRes.json();
-      setMessage("Finding leads...");
-
-      const leadsRes = await fetch(`/api/campaigns/${campaign.id}/find-leads`, {
-        method: "POST",
-      });
-      if (!leadsRes.ok) {
-        const err = await leadsRes.json().catch(() => null);
-        setMessage(
-          err?.error
-            ? `Campaign created, but lead fetch failed: ${err.error}`
-            : "Campaign created, but lead fetch failed.",
-        );
-        return;
-      }
-      const leadsPayload = await leadsRes.json().catch(() => null);
-      if (typeof leadsPayload?.noWebsiteCount === "number" && leadsPayload.noWebsiteCount === 0) {
-        setMessage("No 'No website found' leads in this search. Showing other matches in the campaign.");
-      }
-
-      router.push(`/campaigns/${campaign.id}`);
+      // Redirect immediately; heavy Google work runs on campaign page (?finding=1) so the browser does not stall here.
+      router.push(`/campaigns/${campaign.id}?finding=1`);
     } catch (error) {
       const detail = error instanceof Error ? error.message : "Unexpected error";
       setMessage(`Something went wrong: ${detail}`);
@@ -80,7 +69,22 @@ export default function NewCampaignPage() {
               <Label>Radius (optional)</Label>
               <Input value={radius} onChange={(e) => setRadius(e.target.value)} type="number" />
             </div>
-            <Button disabled={loading}>{loading ? "Finding..." : "Find Leads"}</Button>
+            <div className="space-y-2">
+              <Label>Target sample size</Label>
+              <Input
+                value={maxSampleSize}
+                onChange={(e) => setMaxSampleSize(e.target.value)}
+                type="number"
+                min={60}
+                max={2000}
+                placeholder="500"
+              />
+              <p className="text-xs text-zinc-500">
+                Max unique businesses to merge from Google (60–2000). Each text query returns ~60; we combine multiple
+                searches until this target or results run out.
+              </p>
+            </div>
+            <Button disabled={loading}>{loading ? "Creating…" : "Find Leads"}</Button>
             {message && (
               <p className={`text-sm ${message.toLowerCase().includes("failed") || message.toLowerCase().includes("wrong") ? "text-red-600" : "text-zinc-600"}`}>
                 {message}

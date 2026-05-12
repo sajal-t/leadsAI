@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { FindLeadsRunner } from "./find-leads-runner";
 import { dbAdmin } from "@/lib/db";
 import { DEV_USER } from "@/lib/dev-user";
 
@@ -26,15 +27,24 @@ export default async function CampaignPage({ params }: { params: Promise<{ id: s
   );
 
   return (
-    <main className="mx-auto w-full max-w-7xl p-6 space-y-6">
+    <main className="relative mx-auto w-full max-w-7xl p-6 space-y-6">
+      <FindLeadsRunner campaignId={id} />
       <Card>
         <CardHeader>
           <CardTitle>
             {campaign?.niche} in {campaign?.city}
           </CardTitle>
         </CardHeader>
-        <CardContent className="text-sm text-zinc-600">
-          Created: {campaign?.created_at ? new Date(campaign.created_at).toLocaleString() : "-"}
+        <CardContent className="space-y-1 text-sm text-zinc-600">
+          <p>Created: {campaign?.created_at ? new Date(campaign.created_at).toLocaleString() : "-"}</p>
+          <p>
+            Target sample size:{" "}
+            {campaign != null &&
+            "max_sample_size" in campaign &&
+            typeof campaign.max_sample_size === "number"
+              ? campaign.max_sample_size
+              : "500 (default)"}
+          </p>
         </CardContent>
       </Card>
 
@@ -58,7 +68,10 @@ export default async function CampaignPage({ params }: { params: Promise<{ id: s
             </TableHeader>
             <TableBody>
               {noWebsiteBusinesses.map((business) => {
-                const latestCall = business.call_logs?.[business.call_logs.length - 1]?.outcome ?? "-";
+                const logs = [...(business.call_logs ?? [])].sort(
+                  (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+                );
+                const latestCall = logs[0]?.outcome ?? "-";
                 return (
                   <TableRow key={business.id}>
                     <TableCell>{business.name}</TableCell>
@@ -71,21 +84,9 @@ export default async function CampaignPage({ params }: { params: Promise<{ id: s
                     </TableCell>
                     <TableCell>{latestCall}</TableCell>
                     <TableCell>
-                      <div className="flex gap-2">
-                        <Link href={`/businesses/${business.id}`} className="text-sky-700">
-                          View
-                        </Link>
-                        {business.phone && (
-                          <a href={`tel:${business.phone}`} className="text-sky-700">
-                            Call
-                          </a>
-                        )}
-                        <form action={`/api/businesses/${business.id}/generate-script`} method="post">
-                          <Button size="sm" variant="outline" type="submit">
-                            Generate Script
-                          </Button>
-                        </form>
-                      </div>
+                      <Link href={`/businesses/${business.id}`}>
+                        <Button size="sm">Start campaign</Button>
+                      </Link>
                     </TableCell>
                   </TableRow>
                 );

@@ -17,3 +17,9 @@ export async function jsonCompletion(prompt: string) {
   const output = response.output_text;
   return JSON.parse(output);
 }
+
+/** System + user instructions in one input (Responses API). */
+export async function jsonCompletionWithSystem(system: string, user: string) {
+  const combined = `${system.trim()}\n\n---\n\n${user.trim()}`;
+  return jsonCompletion(combined);
+}

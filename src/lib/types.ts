@@ -1,13 +1,18 @@
 export const CALL_OUTCOMES = [
   "no_answer",
   "voicemail",
+  "wrong_number",
   "interested",
-  "not_interested",
+  "send_info",
   "callback",
   "meeting_booked",
-  "wrong_number",
+  "not_interested",
+  "already_has_someone",
+  "too_expensive",
+  "does_not_need_website",
   "closed_won",
   "closed_lost",
+  "other",
 ] as const;
 
 export type CallOutcome = (typeof CALL_OUTCOMES)[number];

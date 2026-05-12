@@ -1,12 +1,72 @@
 import { notFound } from "next/navigation";
+import { PreviewFrame } from "@/components/preview/preview-frame";
+import { buildPreviewDocumentFromFiles } from "@/lib/ai/build-preview-html";
+import type { AiWebsiteFile } from "@/lib/ai/parse-website-files";
 import { dbAdmin } from "@/lib/db";
 import { siteSpecSchema } from "@/lib/site-spec";
+
+type GeneratedSiteRow = {
+  site_spec_json: unknown;
+  ai_site_project_id?: string | null;
+};
+
+function isStudioSpec(spec: unknown): spec is { source?: string; project_id?: string } {
+  return typeof spec === "object" && spec !== null && (spec as { source?: string }).source === "ai_studio";
+}
 
 export default async function PreviewPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const db = dbAdmin();
   const { data: site } = await db.from("generated_sites").select("*").eq("preview_slug", slug).single();
   if (!site) notFound();
+
+  const row = site as GeneratedSiteRow;
+
+  if (row.ai_site_project_id) {
+    const { data: fileRows } = await db
+      .from("ai_site_files")
+      .select("path,language,content")
+      .eq("project_id", row.ai_site_project_id);
+
+    const files: AiWebsiteFile[] = (fileRows ?? []).map((f) => ({
+      path: f.path,
+      language: f.language,
+      content: f.content,
+    }));
+
+    const html = buildPreviewDocumentFromFiles(files);
+    return (
+      <main className="min-h-screen bg-zinc-100 p-4">
+        <div className="mx-auto h-[calc(100vh-2rem)] max-w-6xl">
+          <PreviewFrame html={html} title="Website preview" />
+        </div>
+        <p className="mx-auto mt-2 max-w-6xl text-center text-xs text-zinc-500">LocalLead AI preview — sandboxed</p>
+      </main>
+    );
+  }
+
+  if (isStudioSpec(row.site_spec_json)) {
+    const pid = (row.site_spec_json as { project_id?: string }).project_id;
+    if (pid) {
+      const { data: fileRows } = await db.from("ai_site_files").select("path,language,content").eq("project_id", pid);
+      const files: AiWebsiteFile[] = (fileRows ?? []).map((f) => ({
+        path: f.path,
+        language: f.language,
+        content: f.content,
+      }));
+      if (files.length > 0) {
+        const html = buildPreviewDocumentFromFiles(files);
+        return (
+          <main className="min-h-screen bg-zinc-100 p-4">
+            <div className="mx-auto h-[calc(100vh-2rem)] max-w-6xl">
+              <PreviewFrame html={html} title="Website preview" />
+            </div>
+            <p className="mx-auto mt-2 max-w-6xl text-center text-xs text-zinc-500">LocalLead AI preview — sandboxed</p>
+          </main>
+        );
+      }
+    }
+  }
 
   const parsed = siteSpecSchema.safeParse(site.site_spec_json);
   if (!parsed.success) notFound();
@@ -17,7 +77,9 @@ export default async function PreviewPage({ params }: { params: Promise<{ slug: 
       <section className="bg-sky-50 px-6 py-16 text-center">
         <h1 className="text-4xl font-bold">{spec.hero.headline}</h1>
         <p className="mx-auto mt-3 max-w-xl text-zinc-700">{spec.hero.subheadline}</p>
-        <button className="mt-6 rounded bg-sky-600 px-5 py-2 text-white">{spec.hero.cta}</button>
+        <button type="button" className="mt-6 rounded bg-sky-600 px-5 py-2 text-white">
+          {spec.hero.cta}
+        </button>
       </section>
       <section className="mx-auto max-w-5xl px-6 py-12">
         <h2 className="text-2xl font-semibold">{spec.services.title}</h2>
