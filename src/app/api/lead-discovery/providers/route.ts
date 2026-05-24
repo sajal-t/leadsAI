@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getUserOr401 } from "@/lib/auth";
 import {
   getMapsScraperConfig,
-  isMapsScraperBinaryPresent,
+  resolveMapsScraperBinaryPath,
 } from "@/lib/lead-discovery/sources/google-maps-scraper";
 
 export async function GET(request: Request) {
@@ -10,7 +10,12 @@ export async function GET(request: Request) {
   if ("error" in auth) return auth.error;
 
   const cfg = getMapsScraperConfig();
-  const binaryPresent = await isMapsScraperBinaryPresent();
+  const resolvedBin = await resolveMapsScraperBinaryPath();
+  const binaryPresent = cfg.mode === "docker" || cfg.dockerEnabled || resolvedBin != null;
+
+  let reason: string | null = null;
+  if (!cfg.enabled) reason = "scraper_disabled";
+  else if (cfg.mode === "cli" && !cfg.dockerEnabled && !binaryPresent) reason = "binary_not_found";
 
   return NextResponse.json({
     google_maps_scraper: {
@@ -18,14 +23,18 @@ export async function GET(request: Request) {
       mode: cfg.mode,
       binary_configured: cfg.binaryConfigured,
       binary_present: binaryPresent,
-      binary_path: cfg.binaryPath,
-      ready: cfg.enabled && (cfg.mode === "docker" || cfg.dockerEnabled ? true : binaryPresent),
+      binary_path: resolvedBin ?? cfg.binaryPath,
+      configured_path: cfg.binaryPath,
+      ready: cfg.enabled && binaryPresent,
       docker_enabled: cfg.dockerEnabled,
       docker_image_configured: Boolean(process.env.MAPS_SCRAPER_DOCKER_IMAGE?.trim()),
+      reason,
       deploy_hint:
-        cfg.enabled && cfg.mode === "cli" && cfg.binaryConfigured && !binaryPresent
-          ? "Scraper env is set but the binary is missing. Redeploy with Dockerfile builder (not Railpack)."
-          : null,
+        reason === "scraper_disabled"
+          ? "Set MAPS_SCRAPER_ENABLED=true in Railway Variables."
+          : reason === "binary_not_found"
+            ? "Use Dockerfile deploy (not Railpack). Set MAPS_SCRAPER_BIN=/usr/bin/google-maps-scraper and redeploy."
+            : null,
     },
   });
 }

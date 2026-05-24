@@ -4,7 +4,7 @@ import { dbAdmin } from "@/lib/db";
 import { runLeadDiscoveryJob } from "@/lib/lead-discovery/pipeline";
 import {
   getMapsScraperConfig,
-  isMapsScraperBinaryPresent,
+  resolveMapsScraperBinaryPath,
 } from "@/lib/lead-discovery/sources/google-maps-scraper";
 import { LEAD_SEARCH_UNAVAILABLE } from "@/lib/product-copy";
 import { chargeCredits } from "@/lib/billing/require-credits";
@@ -23,13 +23,24 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   try {
     const scraperCfg = getMapsScraperConfig();
     if (!scraperCfg.enabled) {
-      return NextResponse.json({ error: LEAD_SEARCH_UNAVAILABLE }, { status: 503 });
+      return NextResponse.json(
+        { error: LEAD_SEARCH_UNAVAILABLE, reason: "scraper_disabled", hint: "Set MAPS_SCRAPER_ENABLED=true" },
+        { status: 503 },
+      );
     }
-    if (scraperCfg.mode === "cli" && !scraperCfg.binaryConfigured) {
-      return NextResponse.json({ error: LEAD_SEARCH_UNAVAILABLE }, { status: 503 });
-    }
-    if (scraperCfg.mode === "cli" && !(await isMapsScraperBinaryPresent())) {
-      return NextResponse.json({ error: LEAD_SEARCH_UNAVAILABLE }, { status: 503 });
+    if (scraperCfg.mode === "cli") {
+      const resolvedBin = await resolveMapsScraperBinaryPath();
+      if (!resolvedBin) {
+        return NextResponse.json(
+          {
+            error: LEAD_SEARCH_UNAVAILABLE,
+            reason: "binary_not_found",
+            hint: "Deploy with Dockerfile and set MAPS_SCRAPER_BIN=/usr/bin/google-maps-scraper",
+            configured_path: scraperCfg.binaryPath,
+          },
+          { status: 503 },
+        );
+      }
     }
 
     const raw = await request.json().catch(() => ({} as Record<string, unknown>));

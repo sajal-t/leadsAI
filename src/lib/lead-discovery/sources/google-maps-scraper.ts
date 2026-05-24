@@ -99,18 +99,49 @@ export function getMapsScraperConfig(): {
   };
 }
 
-/** True when CLI mode and the scraper executable exists on disk (Railway Dockerfile deploy). */
-export async function isMapsScraperBinaryPresent(): Promise<boolean> {
-  const cfg = getMapsScraperConfig();
-  if (cfg.mode === "docker" || cfg.dockerEnabled) return true;
-  const bin = cfg.binaryPath;
-  if (!bin) return false;
+const DEFAULT_SCRAPER_BIN_CANDIDATES = [
+  "/usr/bin/google-maps-scraper",
+  "/usr/local/bin/google-maps-scraper",
+];
+
+async function pathIsExecutable(filePath: string): Promise<boolean> {
   try {
-    await access(bin);
+    await access(filePath);
     return true;
   } catch {
     return false;
   }
+}
+
+/**
+ * Resolve scraper binary — uses MAPS_SCRAPER_BIN, then common Docker paths.
+ * Mutates process.env.MAPS_SCRAPER_BIN when a fallback is found.
+ */
+export async function resolveMapsScraperBinaryPath(): Promise<string | null> {
+  const cfg = getMapsScraperConfig();
+  if (cfg.mode === "docker" || cfg.dockerEnabled) return null;
+
+  const candidates = [
+    cfg.binaryPath,
+    ...DEFAULT_SCRAPER_BIN_CANDIDATES,
+  ].filter((p, i, arr): p is string => Boolean(p) && arr.indexOf(p) === i);
+
+  for (const candidate of candidates) {
+    if (await pathIsExecutable(candidate)) {
+      if (process.env.MAPS_SCRAPER_BIN !== candidate) {
+        process.env.MAPS_SCRAPER_BIN = candidate;
+      }
+      return candidate;
+    }
+  }
+  return null;
+}
+
+/** True when CLI mode and the scraper executable exists on disk (Railway Dockerfile deploy). */
+export async function isMapsScraperBinaryPresent(): Promise<boolean> {
+  const cfg = getMapsScraperConfig();
+  if (cfg.mode === "docker" || cfg.dockerEnabled) return true;
+  return (await resolveMapsScraperBinaryPath()) != null;
 }
 
 /**

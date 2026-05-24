@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getUserOr401 } from "@/lib/auth";
 import {
   getMapsScraperConfig,
-  isMapsScraperBinaryPresent,
+  resolveMapsScraperBinaryPath,
 } from "@/lib/lead-discovery/sources/google-maps-scraper";
 import { runGoogleMapsScraperCli } from "@/lib/lead-discovery/sources/google-maps-scraper-cli";
 import { resolveMapsScraperResultsDir } from "@/lib/lead-discovery/sources/maps-scraper-results-dir";
@@ -18,7 +18,8 @@ export async function POST(request: Request) {
   if ("error" in auth) return auth.error;
 
   const cfg = getMapsScraperConfig();
-  const binaryPresent = await isMapsScraperBinaryPresent();
+  const resolvedBin = await resolveMapsScraperBinaryPath();
+  const binaryPresent = cfg.mode === "docker" || cfg.dockerEnabled || resolvedBin != null;
 
   if (!cfg.enabled || !binaryPresent) {
     return NextResponse.json(
