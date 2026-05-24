@@ -2,6 +2,7 @@ import { spawn } from "child_process";
 import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 import { MapsScraperError } from "./google-maps-scraper-cli";
+import { resolveMapsScraperResultsDir } from "./maps-scraper-results-dir";
 
 function spawnDocker(args: string[], timeoutMs: number): Promise<{ code: number; stderr: string }> {
   return new Promise((resolve, reject) => {
@@ -105,7 +106,7 @@ export async function runGoogleMapsScraperDocker(options: {
   const image = process.env.MAPS_SCRAPER_DOCKER_IMAGE?.trim();
   if (!image) throw new MapsScraperError("MAPS_SCRAPER_DOCKER_IMAGE is not set");
 
-  const resultsDir = path.resolve(process.env.MAPS_SCRAPER_RESULTS_DIR?.trim() || "./tmp/maps-scraper-results");
+  const resultsDir = resolveMapsScraperResultsDir();
   const timeoutMs = Number(process.env.MAPS_SCRAPER_TIMEOUT_MS ?? "180000");
 
   await mkdir(resultsDir, { recursive: true });

@@ -1,6 +1,7 @@
 import { spawn } from "child_process";
 import { access, mkdir, readFile, writeFile } from "fs/promises";
 import path from "path";
+import { resolveMapsScraperResultsDir } from "./maps-scraper-results-dir";
 
 export class MapsScraperError extends Error {
   constructor(message: string) {
@@ -18,22 +19,38 @@ async function fileExists(p: string): Promise<boolean> {
   }
 }
 
+function scraperChildEnv(): NodeJS.ProcessEnv {
+  return {
+    ...process.env,
+    HOME: process.env.HOME || "/tmp",
+    TMPDIR: process.env.TMPDIR || "/tmp",
+    XDG_CONFIG_HOME: process.env.XDG_CONFIG_HOME || "/tmp",
+    XDG_RUNTIME_DIR: process.env.XDG_RUNTIME_DIR || "/tmp",
+    PLAYWRIGHT_BROWSERS_PATH: process.env.PLAYWRIGHT_BROWSERS_PATH || "/opt/browsers",
+    PLAYWRIGHT_DRIVER_PATH: process.env.PLAYWRIGHT_DRIVER_PATH || "/opt",
+  };
+}
+
 function spawnScraper(
   command: string,
   args: string[],
   timeoutMs: number,
   cwd?: string,
-): Promise<{ code: number; stderr: string }> {
+): Promise<{ code: number; stderr: string; stdout: string }> {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
       cwd,
       stdio: ["ignore", "pipe", "pipe"],
-      env: process.env,
+      env: scraperChildEnv(),
     });
 
     let stderr = "";
+    let stdout = "";
     child.stderr?.on("data", (chunk: Buffer) => {
       stderr += chunk.toString();
+    });
+    child.stdout?.on("data", (chunk: Buffer) => {
+      stdout += chunk.toString();
     });
 
     const timer = setTimeout(() => {
@@ -52,7 +69,7 @@ function spawnScraper(
 
     child.on("close", (code) => {
       clearTimeout(timer);
-      resolve({ code: code ?? 1, stderr });
+      resolve({ code: code ?? 1, stderr, stdout });
     });
   });
 }
@@ -151,7 +168,7 @@ export async function runGoogleMapsScraperCli(options: {
   const bin = process.env.MAPS_SCRAPER_BIN?.trim();
   if (!bin) throw new MapsScraperError("Missing MAPS_SCRAPER_BIN");
 
-  const resultsDir = path.resolve(process.env.MAPS_SCRAPER_RESULTS_DIR?.trim() || "./tmp/maps-scraper-results");
+  const resultsDir = resolveMapsScraperResultsDir();
   const timeoutMs = Number(process.env.MAPS_SCRAPER_TIMEOUT_MS ?? "180000");
   if (!Number.isFinite(timeoutMs) || timeoutMs < 10_000) {
     throw new MapsScraperError("MAPS_SCRAPER_TIMEOUT_MS must be at least 10000");
@@ -172,10 +189,11 @@ export async function runGoogleMapsScraperCli(options: {
   const perQueryTimeout =
     lines.length <= 1 ? timeoutMs : Math.max(timeoutMs, timeoutMs * Math.min(lines.length, 4));
   const args = ["-input", inputPath, "-results", outputBase, "-json", ...scraperExtraArgs({ depth: options.depth })];
-  const { code, stderr } = await spawnScraper(bin, args, perQueryTimeout, resultsDir);
+  const { code, stderr, stdout } = await spawnScraper(bin, args, perQueryTimeout, resultsDir);
 
   if (code !== 0) {
-    const detail = stderr.trim().slice(0, 800);
+    const detail = `${stderr}\n${stdout}`.trim().slice(0, 800);
+    console.error("[maps-scraper] exit", code, detail);
     const playwrightHint =
       /could not install|playwright|ms-playwright-go/i.test(stderr)
         ? " Install browsers for the Go scraper: go run github.com/playwright-community/playwright-go/cmd/playwright@latest install --with-deps — then run the scraper once in Terminal before using the app."

@@ -1,3 +1,4 @@
+import { access } from "fs/promises";
 import { buildScrapeQueries } from "@/lib/lead-discovery/build-scrape-queries";
 import { dedupeRawListings } from "@/lib/lead-discovery/dedupe-listings";
 import { DEFAULT_SAMPLE_SIZE, resolveScrapeLimit } from "@/lib/sample-size";
@@ -81,18 +82,35 @@ export function getMapsScraperConfig(): {
   enabled: boolean;
   mode: "cli" | "docker";
   binaryConfigured: boolean;
+  binaryPath: string | null;
   dockerEnabled: boolean;
 } {
   const enabled = process.env.MAPS_SCRAPER_ENABLED === "true";
   const dockerEnabled = process.env.MAPS_SCRAPER_DOCKER_ENABLED === "true";
+  const binaryPath = process.env.MAPS_SCRAPER_BIN?.trim() || null;
   const mode =
     (process.env.MAPS_SCRAPER_MODE ?? "cli").toLowerCase() === "docker" || dockerEnabled ? "docker" : "cli";
   return {
     enabled,
     mode: dockerEnabled ? "docker" : mode,
-    binaryConfigured: Boolean(process.env.MAPS_SCRAPER_BIN?.trim()),
+    binaryConfigured: Boolean(binaryPath),
+    binaryPath,
     dockerEnabled,
   };
+}
+
+/** True when CLI mode and the scraper executable exists on disk (Railway Dockerfile deploy). */
+export async function isMapsScraperBinaryPresent(): Promise<boolean> {
+  const cfg = getMapsScraperConfig();
+  if (cfg.mode === "docker" || cfg.dockerEnabled) return true;
+  const bin = cfg.binaryPath;
+  if (!bin) return false;
+  try {
+    await access(bin);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /**

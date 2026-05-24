@@ -1,5 +1,20 @@
 # Deploy LeadForge on Railway (with lead scraper)
 
+## If lead search fails on Railway
+
+Check your **build logs**. If you see `Railpack` and `npm run start`, the scraper is **not** installed.
+
+**Fix (required):**
+
+1. Railway → your service → **Settings** → **Build**
+2. Set **Builder** to **Dockerfile** (not Railpack)
+3. Set **Root Directory** to the folder that contains `Dockerfile` (usually `locallead-ai`)
+4. **Redeploy** — build logs should show `FROM gosom/google-maps-scraper`, not `railpack-v0.x`
+
+After deploy, while logged in open `/api/lead-discovery/providers` — you want `binary_present: true` and `ready: true`.
+
+---
+
 Railway runs **one Docker container** that includes:
 
 - Next.js app
@@ -41,8 +56,9 @@ SUPABASE_SERVICE_ROLE_KEY=eyJ...
 
 # Scraper (defaults are baked into Dockerfile — only change if needed)
 MAPS_SCRAPER_ENABLED=true
-MAPS_SCRAPER_BIN=/usr/local/bin/google-maps-scraper
+MAPS_SCRAPER_BIN=/usr/bin/google-maps-scraper
 MAPS_SCRAPER_RESULTS_DIR=/tmp/maps-scraper-results
+# Do NOT use ./tmp/... on Railway — it becomes /app/tmp and causes EACCES
 MAPS_SCRAPER_MODE=cli
 MAPS_SCRAPER_TIMEOUT_MS=300000
 
@@ -87,6 +103,16 @@ Run all SQL migrations (`supabase/migrations/001` … `014`) in the Supabase SQL
 
 ## 6. Verify scraper after deploy
 
+**Quick probe** (while logged in, in browser console or curl with session cookie):
+
+```bash
+curl -X POST https://YOUR-DOMAIN/api/lead-discovery/scraper-probe
+```
+
+Success: `{ "ok": true, "rows": <number> }`. Failure returns the real scraper error in `error`.
+
+## 7. Verify in the app
+
 1. Log in to the app
 2. Open browser devtools → Network, or visit while logged in:
    - `GET /api/lead-discovery/providers`
@@ -98,8 +124,13 @@ Run all SQL migrations (`supabase/migrations/001` … `014`) in the Supabase SQL
 
 | Symptom | Fix |
 |--------|-----|
+| Build log says **Railpack** / `npm run start` | Switch builder to **Dockerfile** (see top of this doc) |
+| `binary_present: false` in `/api/lead-discovery/providers` | Same — Dockerfile deploy; set `MAPS_SCRAPER_BIN=/usr/bin/google-maps-scraper` |
+| `EACCES: permission denied, mkdir '/app/tmp'` | Set `MAPS_SCRAPER_RESULTS_DIR=/tmp/maps-scraper-results` (not `./tmp/...`) and redeploy |
+| Generic “couldn't complete” after deploy | Redeploy latest Dockerfile (runs on `gosom` base); run scraper-probe; check Railway logs for `[maps-scraper]` |
+| `MAPS_SCRAPER_BIN` | Use `/usr/bin/google-maps-scraper` (not `/usr/local/bin/...`) on the gosom-based image |
 | Build fails pulling `gosom/google-maps-scraper` | Retry deploy; check Railway build logs |
-| `Scraper binary not found` | `MAPS_SCRAPER_BIN=/usr/local/bin/google-maps-scraper` |
+| `Scraper binary not found` | `MAPS_SCRAPER_BIN=/usr/bin/google-maps-scraper` |
 | Playwright / browser errors | Bump memory to **2 GB+**; redeploy |
 | Search times out | Increase `MAPS_SCRAPER_TIMEOUT_MS=600000` |
 | Auth redirect fails | Fix Supabase Site URL + redirect URLs |

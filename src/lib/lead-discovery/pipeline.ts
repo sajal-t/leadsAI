@@ -246,7 +246,12 @@ export async function runLeadDiscoveryJob(db: SupabaseClient, jobId: string): Pr
       finished_at: new Date().toISOString(),
     });
   } catch (e) {
-    const msg = e instanceof MapsScraperError ? LEAD_SEARCH_FAILED : e instanceof Error ? e.message : String(e);
+    const rawDetail = e instanceof Error ? e.message : String(e);
+    if (e instanceof MapsScraperError) {
+      console.error("[lead-discovery]", jobId, rawDetail);
+      meta.scraper_failure = rawDetail.slice(0, 1000);
+    }
+    const msg = e instanceof MapsScraperError ? LEAD_SEARCH_FAILED : rawDetail;
     await updateJob(db, jobId, {
       status: "failed",
       stage: "error",

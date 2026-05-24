@@ -1,8 +1,11 @@
-import { after, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { getUserOr401 } from "@/lib/auth";
 import { dbAdmin } from "@/lib/db";
 import { runLeadDiscoveryJob } from "@/lib/lead-discovery/pipeline";
-import { getMapsScraperConfig } from "@/lib/lead-discovery/sources/google-maps-scraper";
+import {
+  getMapsScraperConfig,
+  isMapsScraperBinaryPresent,
+} from "@/lib/lead-discovery/sources/google-maps-scraper";
 import { LEAD_SEARCH_UNAVAILABLE } from "@/lib/product-copy";
 import { chargeCredits } from "@/lib/billing/require-credits";
 import { searchModeFromDeepSearch } from "@/lib/lead-discovery/search-mode";
@@ -23,6 +26,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: LEAD_SEARCH_UNAVAILABLE }, { status: 503 });
     }
     if (scraperCfg.mode === "cli" && !scraperCfg.binaryConfigured) {
+      return NextResponse.json({ error: LEAD_SEARCH_UNAVAILABLE }, { status: 503 });
+    }
+    if (scraperCfg.mode === "cli" && !(await isMapsScraperBinaryPresent())) {
       return NextResponse.json({ error: LEAD_SEARCH_UNAVAILABLE }, { status: 503 });
     }
 
@@ -113,10 +119,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       });
     }
 
-    after(() => {
-      void runLeadDiscoveryJob(db, jobId).catch((e) => {
-        console.error("[find-leads after]", e);
-      });
+    // Persistent Docker/Railway: run in-process (after() is unreliable for long scrapes).
+    void runLeadDiscoveryJob(db, jobId).catch((e) => {
+      console.error("[find-leads background]", e);
     });
 
     return NextResponse.json({
