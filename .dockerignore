@@ -1,0 +1,14 @@
+node_modules
+.next
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+tmp/maps-scraper-results
+*.md
+!README.md
+.cursor
+terminals
+agent-tools
+**/*.log
