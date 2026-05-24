@@ -54,20 +54,29 @@ export function BusinessSiteActions({ businessId, previewSlug, studioProjectId }
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap gap-2">
-        <Button type="button" className="bg-sky-600 hover:bg-sky-700" disabled={busy} onClick={() => void openStudioAndGenerate()}>
+        <Button
+          type="button"
+          className="rounded-full bg-neutral-900 text-white hover:bg-neutral-800"
+          disabled={busy}
+          onClick={() => void openStudioAndGenerate()}
+        >
           {busy ? "Opening studio…" : "Generate with AI Studio"}
         </Button>
         {studioProjectId && (
           <Link href={`/studio/${studioProjectId}`}>
-            <Button variant="outline">Open AI Studio</Button>
+            <Button variant="outline" className="rounded-full border-neutral-200">
+              Open AI Studio
+            </Button>
           </Link>
         )}
         {previewSlug && (
           <>
             <a href={`/preview/${previewSlug}`} target="_blank" rel="noreferrer">
-              <Button variant="secondary">Open preview</Button>
+              <Button variant="outline" className="rounded-full border-neutral-200">
+                Open preview
+              </Button>
             </a>
-            <Button type="button" variant="outline" onClick={() => void copyPreview()}>
+            <Button type="button" variant="outline" className="rounded-full border-neutral-200" onClick={() => void copyPreview()}>
               Copy preview link
             </Button>
           </>

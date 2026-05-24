@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { DealRevenueFields } from "@/components/calls/deal-revenue-fields";
 
 type Props = {
   businessId: string;
@@ -56,10 +57,10 @@ function RadioRow({
   return (
     <label
       className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm ${
-        selected ? "border-sky-600 bg-sky-50" : "border-zinc-200 hover:bg-zinc-50"
+        selected ? "border-blue-500 bg-blue-50" : "border-neutral-200 hover:bg-neutral-50"
       }`}
     >
-      <input type="radio" className="accent-sky-600" name={name} checked={selected} onChange={() => onChange(value)} />
+      <input type="radio" className="accent-blue-500" name={name} checked={selected} onChange={() => onChange(value)} />
       <span>{label}</span>
     </label>
   );
@@ -72,7 +73,6 @@ export function GuidedCallLogger({ businessId, nextBusinessId }: Props) {
   const [noAnswerNotes, setNoAnswerNotes] = useState("");
 
   const [vmLeft, setVmLeft] = useState<string | null>(null);
-  const [vmGenEmail, setVmGenEmail] = useState<string | null>(null);
   const [vmNotes, setVmNotes] = useState("");
 
   const [who, setWho] = useState<Who>(null);
@@ -81,11 +81,8 @@ export function GuidedCallLogger({ businessId, nextBusinessId }: Props) {
   const [result, setResult] = useState<Result>(null);
   const [interestTags, setInterestTags] = useState<string[]>([]);
   const [genSite, setGenSite] = useState<string | null>(null);
-  const [genEmailInterested, setGenEmailInterested] = useState<string | null>(null);
   const [interestedNotes, setInterestedNotes] = useState("");
 
-  const [infoEmail, setInfoEmail] = useState("");
-  const [infoGenEmail, setInfoGenEmail] = useState<string | null>(null);
   const [infoNotes, setInfoNotes] = useState("");
 
   const [callbackAt, setCallbackAt] = useState("");
@@ -99,26 +96,25 @@ export function GuidedCallLogger({ businessId, nextBusinessId }: Props) {
 
   const [otherNotes, setOtherNotes] = useState("");
 
+  const [dealSetupFee, setDealSetupFee] = useState("");
+  const [dealMonthlyFee, setDealMonthlyFee] = useState("");
+
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState<{ outcome: string; genEmail?: boolean; genSite?: boolean } | null>(null);
+  const [done, setDone] = useState<{ outcome: string; genSite?: boolean } | null>(null);
 
   const reset = () => {
     setQ1(null);
     setNoAnswerCallAgain(null);
     setNoAnswerNotes("");
     setVmLeft(null);
-    setVmGenEmail(null);
     setVmNotes("");
     setWho(null);
     setWrongNotes("");
     setResult(null);
     setInterestTags([]);
     setGenSite(null);
-    setGenEmailInterested(null);
     setInterestedNotes("");
-    setInfoEmail("");
-    setInfoGenEmail(null);
     setInfoNotes("");
     setCallbackAt("");
     setCallbackNotes("");
@@ -148,14 +144,17 @@ export function GuidedCallLogger({ businessId, nextBusinessId }: Props) {
         const err = await res.json().catch(() => null);
         throw new Error(err?.error ?? `Failed (${res.status})`);
       }
-      return (await res.json()) as { generate_email_requested?: boolean; generate_site_requested?: boolean; outcome?: string };
+      return (await res.json()) as { generate_site_requested?: boolean; outcome?: string };
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not save call");
+      return null;
     } finally {
       setSubmitting(false);
     }
   };
 
   const submitNoAnswer = async () => {
-    await postLog({
+    const ok = await postLog({
       business_id: businessId,
       outcome: "no_answer",
       answered: false,
@@ -163,27 +162,27 @@ export function GuidedCallLogger({ businessId, nextBusinessId }: Props) {
       follow_up_needed: noAnswerCallAgain === "yes",
       metadata: { guided: { call_again: noAnswerCallAgain } },
     });
+    if (!ok) return;
     setDone({ outcome: "no_answer" });
     router.refresh();
   };
 
   const submitVoicemail = async () => {
-    const genEmail = vmGenEmail === "yes";
-    await postLog({
+    const ok = await postLog({
       business_id: businessId,
       outcome: "voicemail",
       answered: false,
       notes: vmNotes || null,
       follow_up_needed: true,
-      generate_email_requested: genEmail,
       metadata: { guided: { left_voicemail: vmLeft } },
     });
-    setDone({ outcome: "voicemail", genEmail });
+    if (!ok) return;
+    setDone({ outcome: "voicemail" });
     router.refresh();
   };
 
   const submitWrong = async () => {
-    await postLog({
+    const ok = await postLog({
       business_id: businessId,
       outcome: "wrong_number",
       answered: true,
@@ -191,6 +190,7 @@ export function GuidedCallLogger({ businessId, nextBusinessId }: Props) {
       notes: wrongNotes || null,
       follow_up_needed: false,
     });
+    if (!ok) return;
     setDone({ outcome: "wrong_number" });
     router.refresh();
   };
@@ -199,31 +199,24 @@ export function GuidedCallLogger({ businessId, nextBusinessId }: Props) {
     const answered = true;
     const answered_by =
       who === "owner" ? "owner" : who === "employee" ? "employee" : who === "unknown" ? "unknown" : null;
-    await postLog({
+    const ok = await postLog({
       business_id: businessId,
       outcome,
       answered,
       answered_by,
       follow_up_needed: extra.follow_up_needed as boolean | undefined,
-      generate_email_requested: extra.generate_email_requested as boolean | undefined,
       generate_site_requested: extra.generate_site_requested as boolean | undefined,
       callback_at: extra.callback_at as string | undefined,
       meeting_at: extra.meeting_at as string | undefined,
-      contact_email: extra.contact_email as string | undefined,
       interest_tags: extra.interest_tags as string[] | undefined,
       notes: (extra.notes as string) || null,
       metadata: { guided: extra.metadata ?? {} },
     });
+    if (!ok) return;
     setDone({
       outcome,
-      genEmail: Boolean(extra.generate_email_requested),
       genSite: Boolean(extra.generate_site_requested),
     });
-    router.refresh();
-  };
-
-  const runGenerateEmail = async () => {
-    await fetch(`/api/businesses/${businessId}/generate-email`, { method: "POST" });
     router.refresh();
   };
 
@@ -259,6 +252,8 @@ export function GuidedCallLogger({ businessId, nextBusinessId }: Props) {
           answered: true,
           notes: "Marked as client (from meeting)",
           follow_up_needed: false,
+          setup_fee: dealSetupFee,
+          monthly_fee: dealMonthlyFee,
         }),
       });
       if (!res.ok) {
@@ -287,14 +282,16 @@ export function GuidedCallLogger({ businessId, nextBusinessId }: Props) {
   }, [q1, who, result, done]);
 
   return (
-    <Card>
-      <CardHeader>
+    <Card className="overflow-hidden border-neutral-200 shadow-sm">
+      <CardHeader className="border-b border-neutral-200 bg-neutral-50">
         <CardTitle>Log this call</CardTitle>
-        <p className="text-sm text-zinc-600">
+        <p className="text-sm text-neutral-500">
           Answer a few quick questions so your dashboard and follow-ups stay accurate.
         </p>
         <div className="flex items-center gap-2 pt-1">
-          <Badge variant="info">{progress}</Badge>
+          <Badge variant="secondary" className="rounded-full">
+            {progress}
+          </Badge>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -310,7 +307,7 @@ export function GuidedCallLogger({ businessId, nextBusinessId }: Props) {
             </div>
 
             {q1 === "no_answer" && (
-              <div className="space-y-3 rounded-lg border border-zinc-200 bg-zinc-50 p-4">
+              <div className="space-y-3 rounded-lg border border-neutral-200 bg-neutral-50 p-4">
                 <Label>Should this lead be called again?</Label>
                 <div className="flex gap-2">
                   <RadioRow label="Yes" name="again" value="yes" current={noAnswerCallAgain} onChange={setNoAnswerCallAgain} />
@@ -327,22 +324,17 @@ export function GuidedCallLogger({ businessId, nextBusinessId }: Props) {
             )}
 
             {q1 === "voicemail" && (
-              <div className="space-y-3 rounded-lg border border-zinc-200 bg-zinc-50 p-4">
+              <div className="space-y-3 rounded-lg border border-neutral-200 bg-neutral-50 p-4">
                 <Label>Did you leave a voicemail?</Label>
                 <div className="flex gap-2">
                   <RadioRow label="Yes" name="vm" value="yes" current={vmLeft} onChange={setVmLeft} />
                   <RadioRow label="No" name="vm" value="no" current={vmLeft} onChange={setVmLeft} />
                 </div>
-                <Label>Should a follow-up email be generated?</Label>
-                <div className="flex gap-2">
-                  <RadioRow label="Yes" name="vme" value="yes" current={vmGenEmail} onChange={setVmGenEmail} />
-                  <RadioRow label="No" name="vme" value="no" current={vmGenEmail} onChange={setVmGenEmail} />
-                </div>
                 <div className="space-y-1">
                   <Label>Any notes?</Label>
                   <Textarea value={vmNotes} onChange={(e) => setVmNotes(e.target.value)} />
                 </div>
-                <Button disabled={submitting || !vmLeft || !vmGenEmail} onClick={() => void submitVoicemail()}>
+                <Button disabled={submitting || !vmLeft} onClick={() => void submitVoicemail()}>
                   Log voicemail
                 </Button>
               </div>
@@ -361,7 +353,7 @@ export function GuidedCallLogger({ businessId, nextBusinessId }: Props) {
                 </div>
 
                 {who === "wrong" && (
-                  <div className="space-y-3 rounded-lg border border-zinc-200 bg-zinc-50 p-4">
+                  <div className="space-y-3 rounded-lg border border-neutral-200 bg-neutral-50 p-4">
                     <Label>Any notes?</Label>
                     <Textarea value={wrongNotes} onChange={(e) => setWrongNotes(e.target.value)} />
                     <Button disabled={submitting} onClick={() => void submitWrong()}>
@@ -377,7 +369,7 @@ export function GuidedCallLogger({ businessId, nextBusinessId }: Props) {
                       {(
                         [
                           ["interested", "Interested"],
-                          ["send_info", "Asked for email / info"],
+                          ["send_info", "Asked for more info"],
                           ["callback", "Asked for callback"],
                           ["meeting_booked", "Meeting booked"],
                           ["not_interested", "Not interested"],
@@ -392,14 +384,14 @@ export function GuidedCallLogger({ businessId, nextBusinessId }: Props) {
                     </div>
 
                     {result === "interested" && (
-                      <div className="space-y-3 rounded-lg border border-zinc-200 bg-zinc-50 p-4">
+                      <div className="space-y-3 rounded-lg border border-neutral-200 bg-neutral-50 p-4">
                         <Label>What are they interested in?</Label>
                         <div className="grid gap-2 sm:grid-cols-2">
                           {INTEREST_OPTIONS.map((opt) => (
                             <label key={opt} className="flex items-center gap-2 text-sm">
                               <input
                                 type="checkbox"
-                                className="accent-sky-600"
+                                className="accent-blue-500"
                                 checked={interestTags.includes(opt)}
                                 onChange={() => toggleInterest(opt)}
                               />
@@ -412,18 +404,12 @@ export function GuidedCallLogger({ businessId, nextBusinessId }: Props) {
                           <RadioRow label="Yes" name="gs" value="yes" current={genSite} onChange={setGenSite} />
                           <RadioRow label="No" name="gs" value="no" current={genSite} onChange={setGenSite} />
                         </div>
-                        <Label>Generate follow-up email?</Label>
-                        <div className="flex gap-2">
-                          <RadioRow label="Yes" name="ge" value="yes" current={genEmailInterested} onChange={setGenEmailInterested} />
-                          <RadioRow label="No" name="ge" value="no" current={genEmailInterested} onChange={setGenEmailInterested} />
-                        </div>
                         <Textarea placeholder="Notes" value={interestedNotes} onChange={(e) => setInterestedNotes(e.target.value)} />
                         <Button
-                          disabled={submitting || genSite === null || genEmailInterested === null}
+                          disabled={submitting || genSite === null}
                           onClick={() =>
                             void submitResult("interested", {
                               follow_up_needed: true,
-                              generate_email_requested: genEmailInterested === "yes",
                               generate_site_requested: genSite === "yes",
                               interest_tags: interestTags,
                               notes: interestedNotes,
@@ -437,24 +423,14 @@ export function GuidedCallLogger({ businessId, nextBusinessId }: Props) {
                     )}
 
                     {result === "send_info" && (
-                      <div className="space-y-3 rounded-lg border border-zinc-200 bg-zinc-50 p-4">
-                        <Label>Email to send to</Label>
-                        <Input type="email" value={infoEmail} onChange={(e) => setInfoEmail(e.target.value)} />
-                        <Label>Generate follow-up email now?</Label>
-                        <div className="flex gap-2">
-                          <RadioRow label="Yes" name="ige" value="yes" current={infoGenEmail} onChange={setInfoGenEmail} />
-                          <RadioRow label="No" name="ige" value="no" current={infoGenEmail} onChange={setInfoGenEmail} />
-                        </div>
+                      <div className="space-y-3 rounded-lg border border-neutral-200 bg-neutral-50 p-4">
                         <Textarea placeholder="Notes" value={infoNotes} onChange={(e) => setInfoNotes(e.target.value)} />
                         <Button
-                          disabled={submitting || !infoGenEmail}
+                          disabled={submitting}
                           onClick={() =>
                             void submitResult("send_info", {
                               follow_up_needed: true,
-                              generate_email_requested: infoGenEmail === "yes",
-                              contact_email: infoEmail || undefined,
                               notes: infoNotes,
-                              metadata: { requested_email: infoEmail },
                             })
                           }
                         >
@@ -464,7 +440,7 @@ export function GuidedCallLogger({ businessId, nextBusinessId }: Props) {
                     )}
 
                     {result === "callback" && (
-                      <div className="space-y-3 rounded-lg border border-zinc-200 bg-zinc-50 p-4">
+                      <div className="space-y-3 rounded-lg border border-neutral-200 bg-neutral-50 p-4">
                         <Label>Callback date / time</Label>
                         <Input type="datetime-local" value={callbackAt} onChange={(e) => setCallbackAt(e.target.value)} />
                         <Label>What should you mention next time?</Label>
@@ -486,7 +462,7 @@ export function GuidedCallLogger({ businessId, nextBusinessId }: Props) {
                     )}
 
                     {result === "meeting_booked" && (
-                      <div className="space-y-3 rounded-lg border border-zinc-200 bg-zinc-50 p-4">
+                      <div className="space-y-3 rounded-lg border border-neutral-200 bg-neutral-50 p-4">
                         <Label>Meeting date / time</Label>
                         <Input type="datetime-local" value={meetingAt} onChange={(e) => setMeetingAt(e.target.value)} />
                         <Label>Meeting notes</Label>
@@ -508,7 +484,7 @@ export function GuidedCallLogger({ businessId, nextBusinessId }: Props) {
                     )}
 
                     {result === "not_interested" && (
-                      <div className="space-y-3 rounded-lg border border-zinc-200 bg-zinc-50 p-4">
+                      <div className="space-y-3 rounded-lg border border-neutral-200 bg-neutral-50 p-4">
                         <Label>Why not?</Label>
                         <div className="grid gap-2 sm:grid-cols-2">
                           {["No reason given", "Bad timing", "Not a priority", "Budget", "Already has website/help", "Other"].map((w) => (
@@ -541,7 +517,7 @@ export function GuidedCallLogger({ businessId, nextBusinessId }: Props) {
                     )}
 
                     {result === "other" && (
-                      <div className="space-y-2 rounded-lg border border-zinc-200 bg-zinc-50 p-4">
+                      <div className="space-y-2 rounded-lg border border-neutral-200 bg-neutral-50 p-4">
                         <Textarea placeholder="Notes" value={otherNotes} onChange={(e) => setOtherNotes(e.target.value)} />
                         <Button disabled={submitting} onClick={() => void submitResult("other", { notes: otherNotes, follow_up_needed: false, metadata: {} })}>
                           Log other
@@ -573,28 +549,16 @@ export function GuidedCallLogger({ businessId, nextBusinessId }: Props) {
                   </Button>
                 </>
               )}
-              {done.outcome === "voicemail" && (
-                <>
-                  <Button type="button" onClick={() => void runGenerateEmail()}>
-                    Generate follow-up email
-                  </Button>
-                  {nextBusinessId && (
-                    <Link href={`/businesses/${nextBusinessId}`}>
-                      <Button variant="outline">Try next lead</Button>
-                    </Link>
-                  )}
-                </>
+              {done.outcome === "voicemail" && nextBusinessId && (
+                <Link href={`/businesses/${nextBusinessId}`}>
+                  <Button variant="outline">Try next lead</Button>
+                </Link>
               )}
               {done.outcome === "interested" && (
                 <>
                   {done.genSite && (
                     <Button type="button" onClick={() => void runGenerateSite()}>
                       Generate website preview
-                    </Button>
-                  )}
-                  {done.genEmail && (
-                    <Button type="button" onClick={() => void runGenerateEmail()}>
-                      Generate follow-up email
                     </Button>
                   )}
                   {nextBusinessId && (
@@ -605,18 +569,13 @@ export function GuidedCallLogger({ businessId, nextBusinessId }: Props) {
                 </>
               )}
               {done.outcome === "send_info" && (
-                <>
-                  <Button type="button" onClick={() => void runGenerateEmail()}>
-                    Generate follow-up email
-                  </Button>
-                  <Button type="button" variant="outline" onClick={() => void runGenerateSite()}>
-                    Generate website preview
-                  </Button>
-                </>
+                <Button type="button" variant="outline" onClick={() => void runGenerateSite()}>
+                  Generate website preview
+                </Button>
               )}
               {done.outcome === "callback" && (
                 <>
-                  <p className="text-sm text-zinc-700">Callback time saved on the log.</p>
+                  <p className="text-sm text-neutral-600">Callback time saved on the log.</p>
                   {nextBusinessId && (
                     <Link href={`/businesses/${nextBusinessId}`}>
                       <Button variant="outline">Try next lead</Button>
@@ -629,14 +588,27 @@ export function GuidedCallLogger({ businessId, nextBusinessId }: Props) {
                   <Button type="button" onClick={() => void runGenerateSite()}>
                     Generate website preview
                   </Button>
-                  <Button type="button" variant="outline" onClick={() => void runGenerateEmail()}>
-                    Generate follow-up email
-                  </Button>
-                  <Button type="button" variant="secondary" disabled={submitting} onClick={() => void runMarkClosedWon()}>
-                    Mark as deal
-                  </Button>
-                  <Link href="/dashboard">
-                    <Button variant="outline">Go to dashboard</Button>
+                  <div className="w-full space-y-3 rounded-lg border border-emerald-200 bg-white p-4">
+                    <p className="text-sm font-medium text-neutral-900">Closed the deal?</p>
+                    <DealRevenueFields
+                      compact
+                      setupFee={dealSetupFee}
+                      monthlyFee={dealMonthlyFee}
+                      onSetupFeeChange={setDealSetupFee}
+                      onMonthlyFeeChange={setDealMonthlyFee}
+                    />
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      disabled={submitting}
+                      className="w-full"
+                      onClick={() => void runMarkClosedWon()}
+                    >
+                      {submitting ? "Saving…" : "Mark closed & save revenue"}
+                    </Button>
+                  </div>
+                  <Link href="/dashboard/calls">
+                    <Button variant="outline">View revenue in call log</Button>
                   </Link>
                 </>
               )}

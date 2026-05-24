@@ -1,18 +1,19 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { dbAdmin } from "@/lib/db";
+import { isAuthDisabled } from "@/lib/auth-config";
 import { DEV_USER } from "@/lib/dev-user";
+import { ensureProfile } from "@/lib/ensure-profile";
 
 export async function getUserOr401(request?: Request) {
-  const admin = dbAdmin();
-
-  // MVP mode: auth disabled, use a shared dev user.
-  await admin.from("profiles").upsert({
-    id: DEV_USER.id,
-    email: DEV_USER.email,
-    agency_name: "LocalLead Demo Agency",
-  });
-  if (process.env.DISABLE_AUTH !== "false") {
+  if (isAuthDisabled()) {
+    const admin = dbAdmin();
+    await admin.from("profiles").upsert({
+      id: DEV_USER.id,
+      email: DEV_USER.email,
+      full_name: "Dev",
+      agency_name: "LeadForge Demo Agency",
+    });
     return { user: DEV_USER };
   }
 
@@ -20,6 +21,7 @@ export async function getUserOr401(request?: Request) {
   const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
 
   if (token) {
+    const admin = dbAdmin();
     const {
       data: { user },
       error,
@@ -45,5 +47,6 @@ export async function getUserOr401(request?: Request) {
       ),
     };
   }
+  await ensureProfile(user);
   return { user };
 }

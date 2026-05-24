@@ -1,5 +1,18 @@
 import type { AiWebsiteFile } from "@/lib/ai/parse-website-files";
 
+const PREVIEW_RESET = `<style data-leadforge-preview-reset>html,body{margin:0;padding:0;width:100%;min-height:100%;}</style>`;
+
+function injectPreviewReset(html: string): string {
+  if (html.includes("data-leadforge-preview-reset")) return html;
+  if (html.includes("</head>")) {
+    return html.replace("</head>", `${PREVIEW_RESET}</head>`);
+  }
+  if (html.includes("<head>")) {
+    return html.replace("<head>", `<head>${PREVIEW_RESET}`);
+  }
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"/>${PREVIEW_RESET}</head><body>${html}</body></html>`;
+}
+
 /** True when index.html is the only file or the only file with content (DeepSite single-file mode). */
 function isSelfContainedIndexOnly(files: AiWebsiteFile[]): boolean {
   const withContent = files.filter((f) => (f.content ?? "").trim().length > 0);
@@ -17,7 +30,7 @@ export function buildPreviewDocumentFromFiles(files: AiWebsiteFile[]): string {
   }
 
   if (isSelfContainedIndexOnly(files)) {
-    return index;
+    return injectPreviewReset(index);
   }
 
   const css = byPath["style.css"] ?? byPath["styles.css"] ?? "";
@@ -45,7 +58,7 @@ export function buildPreviewDocumentFromFiles(files: AiWebsiteFile[]): string {
     }
   }
 
-  return html;
+  return injectPreviewReset(html);
 }
 
 function escapeStyleBlock(css: string): string {

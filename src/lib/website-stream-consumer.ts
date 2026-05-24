@@ -85,22 +85,27 @@ export async function consumeWebsiteSse(
   const decoder = new TextDecoder();
   let buffer = "";
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    buffer = buffer.replace(/\r\n/g, "\n");
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      buffer = buffer.replace(/\r\n/g, "\n");
 
-    let sep: number;
-    while ((sep = buffer.indexOf("\n\n")) !== -1) {
-      const block = buffer.slice(0, sep);
-      buffer = buffer.slice(sep + 2);
-      processSseBlock(block, callbacks);
+      let sep: number;
+      while ((sep = buffer.indexOf("\n\n")) !== -1) {
+        const block = buffer.slice(0, sep);
+        buffer = buffer.slice(sep + 2);
+        processSseBlock(block, callbacks);
+      }
     }
-  }
 
-  buffer = buffer.replace(/\r\n/g, "\n");
-  if (buffer.trim()) {
-    processSseBlock(buffer, callbacks);
+    buffer = buffer.replace(/\r\n/g, "\n");
+    if (buffer.trim()) {
+      processSseBlock(buffer, callbacks);
+    }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Stream read failed";
+    callbacks.onError?.(msg);
   }
 }

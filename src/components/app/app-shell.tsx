@@ -1,16 +1,45 @@
-import { Sidebar } from "./sidebar";
-import { Topbar } from "./topbar";
+"use client";
 
-export function AppShell({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="min-h-screen bg-gradient-to-b from-background via-background to-secondary/20">
-      <div className="mx-auto flex w-full max-w-[1500px] gap-6 p-4 md:p-6">
-        <Sidebar />
-        <div className="w-full">
-          <Topbar />
-          <div className="mx-auto w-full max-w-7xl">{children}</div>
-        </div>
+import type { ReactNode } from "react";
+import useSWR from "swr";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
+import { DashboardShell } from "@/components/dashboard-shell/dashboard-shell";
+import { BillingProvider } from "@/contexts/billing-context";
+import type { DashboardUser } from "@/lib/dashboard-user";
+import { Skeleton } from "@/components/ui/skeleton";
+
+type MeResponse = {
+  user: DashboardUser;
+};
+
+async function fetcher(url: string): Promise<MeResponse> {
+  const res = await fetch(url);
+  if (res.status === 401) throw new Error("401");
+  if (!res.ok) throw new Error("failed");
+  return res.json();
+}
+
+export function AppShell({ children }: { children: ReactNode }) {
+  const router = useRouter();
+  const { data, error, isLoading } = useSWR("/api/me", fetcher, { revalidateOnFocus: true });
+
+  useEffect(() => {
+    if (error?.message === "401") router.replace("/login");
+  }, [error, router]);
+
+  if (isLoading || !data?.user) {
+    return (
+      <div className="min-h-screen bg-neutral-50 p-8">
+        <Skeleton className="mx-auto h-12 max-w-7xl" />
+        <Skeleton className="mx-auto mt-4 h-64 max-w-7xl" />
       </div>
-    </div>
+    );
+  }
+
+  return (
+    <BillingProvider>
+      <DashboardShell user={data.user}>{children}</DashboardShell>
+    </BillingProvider>
   );
 }

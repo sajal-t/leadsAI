@@ -9,17 +9,15 @@ export async function GET() {
   const db = dbAdmin();
   const userId = auth.user.id;
 
-  const [businesses, callsRes, sitesRes, emailsRes, dealsRes] = await Promise.all([
+  const [businesses, callsRes, sitesRes, dealsRes] = await Promise.all([
     db.from("businesses").select("id").eq("user_id", userId),
     db.from("call_logs").select("outcome,answered").eq("user_id", userId),
     db.from("generated_sites").select("id").eq("user_id", userId),
-    db.from("generated_emails").select("id,status").eq("user_id", userId),
     db.from("deals").select("stage,monthly_fee").eq("user_id", userId),
   ]);
 
   const callsData = callsRes.data ?? [];
   const dealsData = dealsRes.data ?? [];
-  const emailsData = emailsRes.data ?? [];
 
   const mrr = dealsData
     .filter((d) => d.stage === "closed_won")
@@ -50,8 +48,6 @@ export async function GET() {
     doesNotNeedWebsite: callsData.filter((c) => c.outcome === "does_not_need_website").length,
     otherOutcomes: callsData.filter((c) => c.outcome === "other").length,
     websitePreviewsGenerated: sitesRes.data?.length ?? 0,
-    followUpEmailsGenerated: emailsData.length,
-    emailsSent: emailsData.filter((e) => e.status === "sent").length,
     closedClients: closedWonDeals,
     mrr,
     arr: mrr * 12,

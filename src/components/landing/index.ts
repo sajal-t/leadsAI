@@ -1,0 +1,12 @@
+export { LandingSection, LandingSectionPad } from "./landing-section";
+export { Navbar } from "./navbar";
+export { Hero } from "./hero";
+export { Problem } from "./problem";
+export { Features } from "./features";
+export { HowItWorks } from "./how-it-works";
+export { AIStudio } from "./ai-studio";
+export { Dashboard } from "./dashboard";
+export { UseCases } from "./use-cases";
+export { Pricing } from "./pricing";
+export { CTA } from "./cta";
+export { Footer } from "./footer";

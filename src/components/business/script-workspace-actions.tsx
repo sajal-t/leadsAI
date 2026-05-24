@@ -54,16 +54,16 @@ export function ScriptWorkspaceActions({ businessId, activeScriptId }: Props) {
   };
 
   return (
-    <div className="rounded-xl border border-zinc-200 bg-zinc-50/50 p-4 sm:p-5">
+    <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-4 sm:p-5">
       <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
         <div className="space-y-1">
-          <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">Script</p>
+          <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">Script</p>
           <div className="flex flex-wrap gap-2">
             <Button
               type="button"
               onClick={() => void run("new")}
               disabled={loading !== null}
-              className="bg-sky-600 hover:bg-sky-700"
+              className="rounded-full bg-neutral-900 text-white hover:bg-neutral-800"
             >
               {loading === "new" ? "Generating…" : "Generate script"}
             </Button>
@@ -73,7 +73,7 @@ export function ScriptWorkspaceActions({ businessId, activeScriptId }: Props) {
                 variant="outline"
                 disabled={loading !== null}
                 onClick={() => void run("regenerate")}
-                className="border-zinc-300 bg-white"
+                className="rounded-full border-neutral-200 bg-white"
               >
                 {loading === "regen" ? "Regenerating…" : "Regenerate"}
               </Button>
@@ -83,14 +83,14 @@ export function ScriptWorkspaceActions({ businessId, activeScriptId }: Props) {
 
         {activeScriptId && (
           <div className="w-full min-w-[200px] max-w-md space-y-1.5 sm:w-auto">
-            <Label htmlFor="script-angle" className="text-xs font-medium text-zinc-600">
+            <Label htmlFor="script-angle" className="text-xs font-medium text-neutral-600">
               Regeneration angle
             </Label>
             <select
               id="script-angle"
               className={cn(
-                "h-10 w-full rounded-lg border border-zinc-300 bg-white px-3 text-sm text-zinc-900 shadow-sm",
-                "focus-visible:border-sky-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/20",
+                "h-10 w-full rounded-lg border border-neutral-200 bg-white px-3 text-sm text-neutral-900 shadow-sm",
+                "focus-visible:border-blue-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30",
               )}
               value={angle}
               onChange={(e) => setAngle(e.target.value)}
@@ -101,8 +101,8 @@ export function ScriptWorkspaceActions({ businessId, activeScriptId }: Props) {
                 </option>
               ))}
             </select>
-            <p className="text-[11px] leading-snug text-zinc-500">
-              Auto picks a random style. Or choose an angle before Regenerate for a deliberate rewrite.
+            <p className="text-[11px] leading-snug text-neutral-500">
+              Regenerate keeps the same facts but rewrites shorter, more direct, or friendlier.
             </p>
           </div>
         )}

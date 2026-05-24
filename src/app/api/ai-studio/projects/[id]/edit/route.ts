@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getUserOr401 } from "@/lib/auth";
+import { chargeCredits } from "@/lib/billing/require-credits";
 import { applySearchReplaceBlocks } from "@/lib/ai/apply-deepsite-replace-blocks";
 import { collectWebsiteModelWithStreamingFallback } from "@/lib/ai/collect-website-stream";
 import { generateWebsiteCode } from "@/lib/ai/generate-website-code";
@@ -58,6 +59,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if ("error" in auth) return auth.error;
   const { id: projectId } = await params;
   const db = dbAdmin();
+
+  const charged = await chargeCredits(db, auth.user.id, "site.edit", { project_id: projectId });
+  if (!charged.ok) return charged.response;
 
   const wantsStream = request.headers.get("accept")?.includes("text/event-stream") ?? false;
 

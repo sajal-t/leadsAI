@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getUserOr401 } from "@/lib/auth";
+import { chargeCredits } from "@/lib/billing/require-credits";
 import { parseColdCallScript } from "@/lib/cold-call-script-schema";
 import { dbAdmin } from "@/lib/db";
 import { jsonCompletionWithSystem } from "@/lib/openai";
@@ -37,7 +38,7 @@ function templateVars(
     website_status: websiteStatus,
     google_maps_url: String(business.google_maps_url ?? ""),
     agency_name: profile?.agency_name ?? process.env.AGENCY_NAME ?? "Your agency",
-    caller_name: process.env.CALLER_NAME ?? "the owner",
+    caller_name: process.env.CALLER_NAME?.trim() ?? "",
     offer_description:
       process.env.AGENCY_OFFER_DESCRIPTION ??
       "Modern, fast websites that help local businesses get found and convert more calls.",
@@ -51,6 +52,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if ("error" in auth) return auth.error;
   const { id } = await params;
   const db = dbAdmin();
+
+  const charged = await chargeCredits(db, auth.user.id, "script.generate", { business_id: id });
+  if (!charged.ok) return charged.response;
 
   let parsedBody: z.infer<typeof bodySchema> = { mode: "new" };
   if (request.headers.get("content-type")?.includes("application/json")) {

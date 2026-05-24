@@ -14,7 +14,7 @@ export type DeepsiteFullHtmlVars = {
 export function buildDeepsiteFullHtmlUserPrompt(vars: DeepsiteFullHtmlVars): string {
   return `Generate a polished one-page website preview for this local business.
 
-This website is being generated inside LocalLead AI, a sales tool for web design agencies. The goal is to create a realistic preview that can be sent to the business owner after a cold call.
+This website is being generated inside LeadForge, a sales tool for web design agencies. The goal is to create a realistic preview that can be sent to the business owner after a cold call.
 
 Business information:
 - Business name: ${vars.business_name}

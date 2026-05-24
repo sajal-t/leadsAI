@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "LocalLead AI",
-  description: "Lead sourcing and outreach workspace for web design agencies.",
+  title: "LeadForge",
+  description: "Find local businesses that need a website, call with AI scripts, and close deals from one workspace.",
 };
 
 export default function RootLayout({

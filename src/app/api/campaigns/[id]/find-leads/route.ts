@@ -1,10 +1,14 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { getUserOr401 } from "@/lib/auth";
 import { dbAdmin } from "@/lib/db";
-import { findLeadsFromPlacesMultiQuery } from "@/lib/google-places";
+import { runLeadDiscoveryJob } from "@/lib/lead-discovery/pipeline";
+import { getMapsScraperConfig } from "@/lib/lead-discovery/sources/google-maps-scraper";
+import { LEAD_SEARCH_UNAVAILABLE } from "@/lib/product-copy";
+import { chargeCredits } from "@/lib/billing/require-credits";
+import { searchModeFromDeepSearch } from "@/lib/lead-discovery/search-mode";
 import { clampSampleSize, DEFAULT_SAMPLE_SIZE } from "@/lib/sample-size";
 
-/** Vercel/serverless: allow long Google aggregation (large sample sizes). */
+/** Serverless: finding leads can take several minutes. */
 export const maxDuration = 300;
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -13,67 +17,119 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const { id } = await params;
   const db = dbAdmin();
 
-  const raw = await request.json().catch(() => ({} as Record<string, unknown>));
-  const bodyMax =
-    typeof raw?.maxSampleSize === "number" ? clampSampleSize(raw.maxSampleSize) : undefined;
+  try {
+    const scraperCfg = getMapsScraperConfig();
+    if (!scraperCfg.enabled) {
+      return NextResponse.json({ error: LEAD_SEARCH_UNAVAILABLE }, { status: 503 });
+    }
+    if (scraperCfg.mode === "cli" && !scraperCfg.binaryConfigured) {
+      return NextResponse.json({ error: LEAD_SEARCH_UNAVAILABLE }, { status: 503 });
+    }
 
-  const { data: campaign } = await db
-    .from("campaigns")
-    .select("*")
-    .eq("id", id)
-    .eq("user_id", auth.user.id)
-    .single();
-  if (!campaign) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
+    const raw = await request.json().catch(() => ({} as Record<string, unknown>));
+    const bodyMax =
+      typeof raw?.maxSampleSize === "number" ? clampSampleSize(raw.maxSampleSize) : undefined;
 
-  const stored =
-    typeof campaign.max_sample_size === "number"
-      ? clampSampleSize(campaign.max_sample_size)
-      : undefined;
-  const maxUnique = bodyMax ?? stored ?? DEFAULT_SAMPLE_SIZE;
+    const { data: campaign } = await db
+      .from("campaigns")
+      .select("*")
+      .eq("id", id)
+      .eq("user_id", auth.user.id)
+      .single();
+    if (!campaign) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
 
-  const primaryQuery = `${campaign.niche} in ${campaign.city}`;
-  const { places, queriesUsed, queryBudget } = await findLeadsFromPlacesMultiQuery(
-    campaign.niche,
-    campaign.city,
-    maxUnique,
-  );
-  const rows = places.map((p) => ({
-    campaign_id: campaign.id,
-    user_id: auth.user.id,
-    place_id: p.id,
-    name: p.displayName?.text ?? "Unknown",
-    address: p.formattedAddress ?? "",
-    phone: p.nationalPhoneNumber ?? null,
-    rating: p.rating ?? null,
-    review_count: p.userRatingCount ?? null,
-    google_maps_url: p.googleMapsUri ?? null,
-    website_url: p.websiteUri ?? null,
-    website_status: p.websiteUri ? "WEBSITE_FOUND" : "NO_WEBSITE_FOUND",
-    business_status: p.businessStatus ?? null,
-  }));
+    const stored =
+      typeof campaign.max_sample_size === "number"
+        ? clampSampleSize(campaign.max_sample_size)
+        : undefined;
+    const maxUnique = bodyMax ?? stored ?? DEFAULT_SAMPLE_SIZE;
 
-  if (rows.length > 0) {
-    await db.from("businesses").upsert(rows, { onConflict: "place_id" });
+    if (bodyMax != null) {
+      await db
+        .from("campaigns")
+        .update({ max_sample_size: maxUnique })
+        .eq("id", id)
+        .eq("user_id", auth.user.id);
+    }
+
+    const deepSearch = Boolean(campaign.deep_search);
+    const searchMode = searchModeFromDeepSearch(deepSearch);
+
+    const creditAction = deepSearch ? "lead_search.deep" : "lead_search.shallow";
+    const charged = await chargeCredits(db, auth.user.id, creditAction, {
+      campaign_id: id,
+      deep_search: deepSearch,
+    });
+    if (!charged.ok) return charged.response;
+
+    const query = `${String(campaign.niche).trim()} in ${String(campaign.city).trim()}`;
+
+    const { data: jobRow, error: jobErr } = await db
+      .from("lead_discovery_jobs")
+      .insert({
+        campaign_id: id,
+        user_id: auth.user.id,
+        status: "queued",
+        stage: "queued",
+        meta: {
+          maxSampleSize: maxUnique,
+          source: "google_maps_scraper",
+          query,
+          niche: String(campaign.niche),
+          city: String(campaign.city),
+          deep_search: deepSearch,
+          search_mode: searchMode,
+        },
+      })
+      .select("id")
+      .single();
+
+    if (jobErr || !jobRow) {
+      return NextResponse.json(
+        { error: jobErr?.message ?? "Could not start lead search. Try again in a moment." },
+        { status: 500 },
+      );
+    }
+
+    const jobId = jobRow.id as string;
+    const sync =
+      process.env.LEAD_DISCOVERY_SYNC === "1" || process.env.LEAD_DISCOVERY_SYNC === "true";
+
+    if (sync) {
+      await runLeadDiscoveryJob(db, jobId);
+      const { data: businesses } = await db
+        .from("businesses")
+        .select("*")
+        .eq("campaign_id", id)
+        .eq("user_id", auth.user.id);
+      const { data: job } = await db.from("lead_discovery_jobs").select("*").eq("id", jobId).single();
+      return NextResponse.json({
+        jobId,
+        sync: true,
+        job,
+        maxSampleSize: maxUnique,
+        savedBusinesses: businesses?.length ?? 0,
+        businesses: businesses ?? [],
+      });
+    }
+
+    after(() => {
+      void runLeadDiscoveryJob(db, jobId).catch((e) => {
+        console.error("[find-leads after]", e);
+      });
+    });
+
+    return NextResponse.json({
+      jobId,
+      sync: false,
+      pollUrl: `/api/campaigns/${id}/discovery-jobs/${jobId}`,
+      maxSampleSize: maxUnique,
+      note: "Lead search is running in the background.",
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("[find-leads]", msg);
+    const safe = msg.length > 500 ? `${msg.slice(0, 500)}…` : msg;
+    return NextResponse.json({ error: safe }, { status: 502 });
   }
-
-  const { data: businesses } = await db
-    .from("businesses")
-    .select("*")
-    .eq("campaign_id", campaign.id)
-    .eq("user_id", auth.user.id);
-  const noWebsiteCount =
-    businesses?.filter((business) => business.website_status === "NO_WEBSITE_FOUND").length ?? 0;
-  return NextResponse.json({
-    query: primaryQuery,
-    queryBudgetPlanned: queryBudget,
-    queriesExecuted: queriesUsed.length,
-    queriesUsed,
-    maxSampleSize: maxUnique,
-    note:
-      "Target sample size is a ceiling. Each text query returns at most ~60 places; overlap is heavy, so we run many distinct queries (queryBudgetPlanned). You may still get fewer uniques than the target if Google exhausts variation.",
-    totalFromGoogle: places.length,
-    savedBusinesses: businesses?.length ?? 0,
-    noWebsiteCount,
-    businesses: businesses ?? [],
-  });
 }

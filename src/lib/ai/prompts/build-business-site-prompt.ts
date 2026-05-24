@@ -20,7 +20,7 @@ export function buildBusinessSitePrompt(business: BusinessRow, campaign: Campaig
 
   const userPrompt = `Generate a polished one-page website preview for a local business.
 
-This website is being generated inside LocalLead AI, a tool for web design agencies. The goal is to create a realistic preview that can be sent to the business owner after a cold call.
+This website is being generated inside LeadForge, a tool for web design agencies. The goal is to create a realistic preview that can be sent to the business owner after a cold call.
 
 Business information:
 - Business name: ${business.name}

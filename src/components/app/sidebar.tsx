@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, PlusSquare, Settings, Sparkles, Target, Users, WandSparkles } from "lucide-react";
+import { BarChart3, PlusSquare, Settings, Target, Users, WandSparkles } from "lucide-react";
+import { BrandLogo } from "@/components/brand/brand-logo";
 
 const nav = [
   { href: "/dashboard", label: "Dashboard", icon: BarChart3 },
@@ -17,8 +18,8 @@ export function Sidebar() {
   const path = usePathname();
   return (
     <aside className="hidden w-64 shrink-0 rounded-2xl border border-border/50 bg-card/60 p-4 shadow-sm shadow-primary/5 backdrop-blur lg:block">
-      <div className="mb-6 flex items-center gap-2 px-2 text-sm font-semibold">
-        <Sparkles className="h-4 w-4 text-primary" /> LocalLead AI
+      <div className="mb-6 px-2">
+        <BrandLogo href="/dashboard" size="sm" />
       </div>
       <nav className="space-y-1">
         {nav.map((item) => {

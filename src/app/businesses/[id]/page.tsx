@@ -1,35 +1,45 @@
+import Link from "next/link";
+import { ArrowLeft, ExternalLink, MapPin, Phone, Star } from "lucide-react";
+import { AppShell } from "@/components/app/app-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BusinessSiteActions } from "@/components/business/business-site-actions";
 import { ColdCallScriptCards } from "@/components/business/cold-call-script-cards";
 import { GuidedCallLogger } from "@/components/business/guided-call-logger";
 import { ScriptWorkspaceActions } from "@/components/business/script-workspace-actions";
 import { dbAdmin } from "@/lib/db";
-import { DEV_USER } from "@/lib/dev-user";
+import { getServerUserId } from "@/lib/server-user";
+import { websiteStatusLabel } from "@/lib/lead-discovery/classify-website-status";
+import { notFound, redirect } from "next/navigation";
 
 export default async function BusinessPage({ params }: { params: Promise<{ id: string }> }) {
+  const userId = await getServerUserId();
+  if (!userId) redirect("/login");
+
   const { id } = await params;
   const db = dbAdmin();
 
-  const [{ data: business }, { data: calls }, { data: scriptRows }, { data: emails }, { data: sites }, { data: studioProjectRow }] =
+  const [{ data: business }, { data: calls }, { data: scriptRows }, { data: sites }, { data: studioProjectRow }] =
     await Promise.all([
-      db.from("businesses").select("*").eq("id", id).eq("user_id", DEV_USER.id).single(),
-      db.from("call_logs").select("*").eq("business_id", id).eq("user_id", DEV_USER.id).order("created_at", { ascending: false }),
+      db.from("businesses").select("*, campaigns(id,niche,city)").eq("id", id).eq("user_id", userId).single(),
+      db.from("call_logs").select("*").eq("business_id", id).eq("user_id", userId).order("created_at", { ascending: false }),
       db
         .from("generated_scripts")
         .select("*")
         .eq("business_id", id)
-        .eq("user_id", DEV_USER.id)
+        .eq("user_id", userId)
         .order("created_at", { ascending: false })
         .limit(1),
-      db.from("generated_emails").select("*").eq("business_id", id).eq("user_id", DEV_USER.id).order("created_at", { ascending: false }).limit(1),
-      db.from("generated_sites").select("*").eq("business_id", id).eq("user_id", DEV_USER.id).order("created_at", { ascending: false }).limit(1),
-      db.from("ai_site_projects").select("id").eq("business_id", id).eq("user_id", DEV_USER.id).maybeSingle(),
+      db.from("generated_sites").select("*").eq("business_id", id).eq("user_id", userId).order("created_at", { ascending: false }).limit(1),
+      db.from("ai_site_projects").select("id").eq("business_id", id).eq("user_id", userId).maybeSingle(),
     ]);
 
+  if (!business) notFound();
+
+  const camp = business.campaigns as { id: string; niche: string; city: string } | { id: string; niche: string; city: string }[] | null;
+  const campaign = Array.isArray(camp) ? camp[0] ?? null : camp;
+
   const script = scriptRows?.[0] ?? null;
-  const email = emails?.[0];
   const site = sites?.[0] as { preview_slug?: string; ai_site_project_id?: string | null } | undefined;
   const studioProjectId = site?.ai_site_project_id ?? studioProjectRow?.id ?? null;
 
@@ -39,7 +49,7 @@ export default async function BusinessPage({ params }: { params: Promise<{ id: s
       .from("businesses")
       .select("id")
       .eq("campaign_id", business.campaign_id)
-      .eq("user_id", DEV_USER.id)
+      .eq("user_id", userId)
       .order("created_at", { ascending: true });
     const arr = siblings ?? [];
     const ix = arr.findIndex((r) => r.id === id);
@@ -47,109 +57,168 @@ export default async function BusinessPage({ params }: { params: Promise<{ id: s
   }
 
   return (
-    <main className="mx-auto w-full max-w-7xl space-y-6 p-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-xl">{business?.name}</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-3 text-sm text-zinc-800 md:flex-row md:flex-wrap md:items-center md:justify-between">
-          <div className="space-y-1">
-            <p>
-              <span className="font-medium text-zinc-600">Phone:</span> {business?.phone || "—"}
-            </p>
-            <p>
-              <span className="font-medium text-zinc-600">Address:</span> {business?.address || "—"}
-            </p>
-            <p>
-              <span className="font-medium text-zinc-600">Rating:</span> {business?.rating ?? "—"} ·{" "}
-              <span className="font-medium text-zinc-600">Reviews:</span> {business?.review_count ?? "—"}
-            </p>
-            <p className="flex flex-wrap items-center gap-2">
-              <span className="font-medium text-zinc-600">Website status:</span>
-              <Badge variant="warning">No website found</Badge>
-            </p>
-            {business?.google_maps_url && (
-              <a href={business.google_maps_url} className="text-sky-700 underline" target="_blank" rel="noreferrer">
-                Open Google Maps listing
-              </a>
+    <AppShell>
+      <div className="mx-auto max-w-7xl space-y-8">
+        <div className="flex flex-col gap-4 border-b border-neutral-200 pb-6 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0 space-y-3">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+              {campaign ? (
+                <Link
+                  href={`/campaigns/${campaign.id}`}
+                  className="inline-flex items-center gap-2 text-sm font-medium text-blue-500 hover:text-blue-600"
+                >
+                  <ArrowLeft className="h-4 w-4 shrink-0" aria-hidden />
+                  Back to campaign
+                </Link>
+              ) : (
+                <Link
+                  href="/dashboard/leads"
+                  className="inline-flex items-center gap-2 text-sm font-medium text-blue-500 hover:text-blue-600"
+                >
+                  <ArrowLeft className="h-4 w-4 shrink-0" aria-hidden />
+                  Back to lead finder
+                </Link>
+              )}
+              <span className="hidden text-neutral-300 sm:inline">|</span>
+              <Link href="/dashboard/leads" className="text-sm font-medium text-neutral-600 hover:text-neutral-900">
+                All leads
+              </Link>
+              <span className="hidden text-neutral-300 sm:inline">|</span>
+              <Link href="/dashboard" className="text-sm font-medium text-neutral-600 hover:text-neutral-900">
+                Dashboard
+              </Link>
+            </div>
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">Workspace</p>
+              <h1 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-900 sm:text-3xl">{business.name as string}</h1>
+              {campaign && (
+                <p className="mt-1 text-sm text-neutral-500">
+                  Campaign: <span className="font-medium text-neutral-700">{campaign.niche}</span> · {campaign.city}
+                </p>
+              )}
+            </div>
+          </div>
+          <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+            <Button asChild variant="outline" className="rounded-full border-neutral-200">
+              <Link href="/dashboard/leads">Exit workspace</Link>
+            </Button>
+            {business.phone && (
+              <Button asChild className="rounded-full bg-neutral-900 text-white hover:bg-neutral-800">
+                <a href={`tel:${business.phone}`}>
+                  <Phone className="mr-2 h-4 w-4" aria-hidden />
+                  Call
+                </a>
+              </Button>
             )}
           </div>
-          {business?.phone && (
-            <a href={`tel:${business.phone}`}>
-              <Button className="bg-sky-600 hover:bg-sky-700">Call business</Button>
-            </a>
-          )}
-        </CardContent>
-      </Card>
-
-      <div className="flex flex-col gap-3">
-        <BusinessSiteActions businessId={id} previewSlug={site?.preview_slug ?? null} studioProjectId={studioProjectId} />
-        <div className="flex flex-wrap gap-2">
-          <form action={`/api/businesses/${id}/generate-email`} method="post">
-            <Button variant="outline">Generate follow-up email</Button>
-          </form>
-          {email && (
-            <form action={`/api/emails/${email.id}/send`} method="post">
-              <Button>Send email</Button>
-            </form>
-          )}
         </div>
-      </div>
 
-      <section className="space-y-6">
-        <Card className="overflow-hidden border-zinc-200 shadow-sm">
-          <CardHeader className="border-b border-zinc-100 bg-zinc-50/80 pb-4">
-            <CardTitle className="text-lg">AI call script</CardTitle>
-            <p className="mt-1.5 text-sm leading-relaxed text-zinc-600">
-              One default path to read in order, plus alternates and objections below. Generate fresh copy anytime.
-            </p>
-          </CardHeader>
-          <CardContent className="space-y-6 pt-6">
-            <ScriptWorkspaceActions businessId={id} activeScriptId={script?.id ?? null} />
-            {script ? (
-              <ColdCallScriptCards scriptJson={script.script_json} />
-            ) : (
-              <div className="rounded-lg border border-dashed border-zinc-200 bg-zinc-50/50 px-4 py-8 text-center">
-                <p className="text-sm text-zinc-600">No script yet. Tap Generate script to create one.</p>
+        <div className="rounded-lg border border-neutral-200 bg-white p-6 shadow-sm">
+          <div className="flex flex-col gap-6 lg:flex-row lg:justify-between">
+            <div className="min-w-0 flex-1 space-y-3 text-sm">
+              <div className="flex flex-wrap items-start gap-2">
+                <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-blue-500" aria-hidden />
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">Address</p>
+                  <p className="mt-0.5 text-neutral-900">{(business.address as string) || "—"}</p>
+                </div>
               </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <GuidedCallLogger businessId={id} nextBusinessId={nextBusinessId} />
-      </section>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Call history</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          {(calls ?? []).length === 0 && <p className="text-sm text-zinc-500">No calls logged yet.</p>}
-          {(calls ?? []).map((call) => (
-            <div key={call.id} className="rounded border p-3 text-sm">
+              <div className="flex flex-wrap items-start gap-2">
+                <Phone className="mt-0.5 h-4 w-4 shrink-0 text-blue-500" aria-hidden />
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">Phone</p>
+                  <p className="mt-0.5 text-neutral-900">{(business.phone as string | null) || "—"}</p>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-start gap-2">
+                <Star className="mt-0.5 h-4 w-4 shrink-0 text-blue-500" aria-hidden />
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">Rating</p>
+                  <p className="mt-0.5 text-neutral-900">
+                    {(business.rating as number | null) ?? "—"} · {(business.review_count as number | null) ?? "—"} reviews
+                  </p>
+                </div>
+              </div>
               <div className="flex flex-wrap items-center gap-2">
-                <span className="font-medium">{call.outcome}</span>
-                {call.answered != null && (
-                  <Badge variant="default">{call.answered ? "Answered" : "No live answer"}</Badge>
-                )}
+                <span className="text-xs font-medium uppercase tracking-wide text-neutral-500">Website</span>
+                <Badge variant="warning" className="rounded-full">
+                  {websiteStatusLabel(String(business.website_status))}
+                </Badge>
               </div>
-              <p className="text-zinc-600">{call.notes || "—"}</p>
+              {"lead_reason" in business && business.lead_reason ? (
+                <p className="text-sm text-neutral-600">
+                  <span className="font-medium text-neutral-800">Lead insight: </span>
+                  {String(business.lead_reason)}
+                </p>
+              ) : null}
+              {business.google_maps_url && (
+                <a
+                  href={business.google_maps_url as string}
+                  className="inline-flex items-center gap-1.5 text-sm font-medium text-blue-500 hover:text-blue-600"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Google Maps
+                  <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+                </a>
+              )}
             </div>
-          ))}
-        </CardContent>
-      </Card>
+          </div>
+        </div>
 
-      {email && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Generated email</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            <p className="font-medium">{email.subject}</p>
-            <p className="whitespace-pre-wrap">{email.body}</p>
-          </CardContent>
-        </Card>
-      )}
-    </main>
+        <div className="rounded-lg border border-neutral-200 bg-white p-6 shadow-sm">
+          <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">Website preview</p>
+          <div className="mt-4">
+            <BusinessSiteActions businessId={id} previewSlug={site?.preview_slug ?? null} studioProjectId={studioProjectId} />
+          </div>
+        </div>
+
+        <section className="space-y-6">
+          <div className="overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-sm">
+            <div className="border-b border-neutral-200 bg-neutral-50 px-6 py-4">
+              <h2 className="text-lg font-semibold tracking-tight text-neutral-900">AI call script</h2>
+              <p className="mt-1 text-sm text-neutral-500">
+                One default path to read in order, plus alternates and objections. Generate fresh copy anytime.
+              </p>
+            </div>
+            <div className="space-y-6 p-6">
+              <ScriptWorkspaceActions businessId={id} activeScriptId={script?.id ?? null} />
+              {script ? (
+                <ColdCallScriptCards scriptJson={script.script_json} />
+              ) : (
+                <div className="rounded-lg border border-dashed border-neutral-200 bg-neutral-50 px-4 py-10 text-center">
+                  <p className="text-sm text-neutral-600">No script yet. Use Generate script above.</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <GuidedCallLogger businessId={id} nextBusinessId={nextBusinessId} />
+        </section>
+
+        <div className="overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-sm">
+          <div className="border-b border-neutral-200 bg-neutral-50 px-6 py-4">
+            <h2 className="text-lg font-semibold tracking-tight text-neutral-900">Call history</h2>
+          </div>
+          <div className="space-y-3 p-6">
+            {(calls ?? []).length === 0 && <p className="text-sm text-neutral-500">No calls logged yet.</p>}
+            {(calls ?? []).map((call) => (
+              <div key={call.id as string} className="rounded-lg border border-neutral-200 bg-neutral-50/50 p-4 text-sm">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-medium capitalize text-neutral-900">{String(call.outcome).replace(/_/g, " ")}</span>
+                  {call.answered != null && (
+                    <Badge variant="secondary" className="rounded-full">
+                      {call.answered ? "Answered" : "No live answer"}
+                    </Badge>
+                  )}
+                </div>
+                <p className="mt-2 text-neutral-600">{(call.notes as string | null) || "—"}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+      </div>
+    </AppShell>
   );
 }

@@ -20,7 +20,7 @@ export function RecentCampaignsCard({ campaigns }: { campaigns: RecentCampaign[]
   const clearAll = async () => {
     if (campaigns.length === 0) return;
     const confirmed = window.confirm(
-      "Delete all your campaigns? This removes every lead, call log, generated script, email, website preview, AI studio data, and deal tied to those campaigns. You cannot undo this.",
+      "Delete all your campaigns? This removes every lead, call log, generated script, website preview, AI studio data, and deal tied to those campaigns. You cannot undo this.",
     );
     if (!confirmed) return;
 
