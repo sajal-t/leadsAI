@@ -44,7 +44,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certifi
 
 RUN addgroup --system --gid 1001 nodejs \
     && adduser --system --uid 1001 --ingroup nodejs nextjs \
-    && chmod -R a+rX /opt/browsers /opt/ms-playwright-go \
+    && chown -R nextjs:nodejs /opt \
+    && chmod -R u+rwX /opt \
     && chmod a+rx /usr/bin/google-maps-scraper
 
 COPY --from=builder /app/public ./public

@@ -128,6 +128,7 @@ Success: `{ "ok": true, "rows": <number> }`. Failure returns the real scraper er
 | `binary_present: false` in `/api/lead-discovery/providers` | Same — Dockerfile deploy; set `MAPS_SCRAPER_BIN=/usr/bin/google-maps-scraper` |
 | `EACCES: permission denied, mkdir '/app/tmp'` | Set `MAPS_SCRAPER_RESULTS_DIR=/tmp/maps-scraper-results` (not `./tmp/...`) and redeploy |
 | Generic “couldn't complete” after deploy | Redeploy latest Dockerfile (runs on `gosom` base); run scraper-probe; check Railway logs for `[maps-scraper]` |
+| `open /opt/LICENSE: permission denied` | Redeploy latest Dockerfile (`chown` on `/opt` for `nextjs` user) |
 | `MAPS_SCRAPER_BIN` | Use `/usr/bin/google-maps-scraper` (not `/usr/local/bin/...`) on the gosom-based image |
 | Build fails pulling `gosom/google-maps-scraper` | Retry deploy; check Railway build logs |
 | `Scraper binary not found` | `MAPS_SCRAPER_BIN=/usr/bin/google-maps-scraper` |
