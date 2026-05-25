@@ -26,6 +26,25 @@ export function stripePriceIdForPlan(plan: BillingPlan): string | null {
   return id || null;
 }
 
+export function stripeCheckoutReadiness(): {
+  configured: boolean;
+  prices: Record<Exclude<BillingPlan, "free">, { set: boolean; valid: boolean; hint: string | null }>;
+} {
+  const prices = {} as Record<Exclude<BillingPlan, "free">, { set: boolean; valid: boolean; hint: string | null }>;
+  for (const plan of PAID_PLANS) {
+    const id = stripePriceIdForPlan(plan);
+    let hint: string | null = null;
+    if (!id) hint = `Set STRIPE_PRICE_${plan.toUpperCase()} in environment variables.`;
+    else if (id.startsWith("prod_")) hint = "Use Price ID (price_...), not Product ID (prod_...).";
+    else if (!id.startsWith("price_")) hint = "Expected a Stripe Price ID starting with price_.";
+    prices[plan] = { set: Boolean(id), valid: Boolean(id?.startsWith("price_")), hint };
+  }
+  return {
+    configured: isStripeConfigured() && PAID_PLANS.every((p) => prices[p].valid),
+    prices,
+  };
+}
+
 export function planFromStripePriceId(priceId: string): BillingPlan | null {
   for (const plan of PAID_PLANS) {
     if (stripePriceIdForPlan(plan) === priceId) return plan;
@@ -54,7 +73,17 @@ export async function getOrCreateStripeCustomer(
     metadata: { user_id: userId },
   });
 
-  await db.from("profiles").update({ stripe_customer_id: customer.id }).eq("id", userId);
+  const { error: updateErr } = await db
+    .from("profiles")
+    .update({ stripe_customer_id: customer.id })
+    .eq("id", userId);
+  if (updateErr) {
+    throw new Error(
+      updateErr.message.includes("stripe_customer_id")
+        ? "Missing stripe_customer_id on profiles. Run supabase/migrations/014_stripe_billing.sql."
+        : updateErr.message,
+    );
+  }
   return customer.id;
 }
 

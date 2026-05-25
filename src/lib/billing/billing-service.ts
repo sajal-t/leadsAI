@@ -122,19 +122,14 @@ export async function getBillingState(db: SupabaseClient, userId: string): Promi
   const { data: raw, error } = await db.from("profiles").select(BILLING_COLUMNS).eq("id", userId).maybeSingle();
 
   if (error) {
-    if (error.message.includes("billing_plan") || error.message.includes("credits_balance")) {
-      return {
-        plan: "free",
-        planName: PLANS.free.name,
-        isPaid: false,
-        creditsBalance: 0,
-        creditsMonthlyAllowance: 0,
-        creditsPeriodStart: null,
-        creditsPeriodEnd: null,
-        deepSearchAllowed: false,
-        billingDisabled: false,
-        stripeCustomerId: null,
-      };
+    const missingBillingSchema =
+      /billing_plan|credits_balance|stripe_customer_id|stripe_subscription_id|does not exist/i.test(
+        error.message,
+      );
+    if (missingBillingSchema) {
+      throw new Error(
+        "Billing database columns are missing. Run supabase/migrations/013_billing_credits.sql and 014_stripe_billing.sql in the Supabase SQL editor.",
+      );
     }
     throw new Error(error.message);
   }
