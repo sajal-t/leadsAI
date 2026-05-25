@@ -103,6 +103,10 @@ STRIPE_PRICE_AGENCY=price_...
 
 Google sign-in uses the **current browser origin** for the callback. If that origin is not in this list, OAuth fails (especially on mobile).
 
+Add signup redirect if using email links:
+
+- `https://leadforgelabs.org/auth/callback`
+
 Run all SQL migrations (`supabase/migrations/001` … `014`) in the Supabase SQL editor.
 
 ## 6. Verify scraper after deploy

@@ -197,37 +197,42 @@ export function SignupForm() {
     }
     setLoading(true);
     setMessage("");
-    const supabase = createClient();
     const trimmedName = name.trim();
     const trimmedEmail = email.trim();
     const origin = typeof window !== "undefined" ? window.location.origin : undefined;
-    const { data, error } = await supabase.auth.signUp({
-      email: trimmedEmail,
-      password,
-      options: {
-        data: {
-          full_name: trimmedName,
-          agency_name: "Your agency",
+
+    try {
+      const supabase = createClient();
+      const { data, error } = await supabase.auth.signUp({
+        email: trimmedEmail,
+        password,
+        options: {
+          data: {
+            full_name: trimmedName,
+            agency_name: "Your agency",
+          },
+          emailRedirectTo: oauthCallbackUrl("/dashboard", origin),
         },
-        emailRedirectTo: oauthCallbackUrl("/dashboard", origin),
-      },
-    });
-    if (error) {
-      setMessage(formatAuthError(error));
+      });
+      if (error) {
+        setMessage(formatAuthError(error));
+        return;
+      }
+      if (isDuplicateSignupUser(data.user)) {
+        setMessage(formatAuthError({ message: "User already registered" }));
+        return;
+      }
+      if (data.session) {
+        window.location.href = "/dashboard";
+        return;
+      }
+      savePending(SIGNUP_PENDING_KEY, { email: trimmedEmail, fullName: trimmedName });
+      window.location.href = "/signup/verify";
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "Could not create account. Try again.");
+    } finally {
       setLoading(false);
-      return;
     }
-    if (isDuplicateSignupUser(data.user)) {
-      setMessage(formatAuthError({ message: "User already registered" }));
-      setLoading(false);
-      return;
-    }
-    if (data.session) {
-      window.location.href = "/dashboard";
-      return;
-    }
-    savePending(SIGNUP_PENDING_KEY, { email: trimmedEmail, fullName: trimmedName });
-    router.push("/signup/verify");
   };
 
   const submitWithOtp = async () => {
@@ -243,24 +248,29 @@ export function SignupForm() {
     }
     setLoading(true);
     setMessage("");
-    const supabase = createClient();
-    const { error } = await supabase.auth.signInWithOtp({
-      email: trimmedEmail,
-      options: {
-        shouldCreateUser: true,
-        data: {
-          full_name: trimmedName,
-          agency_name: "Your agency",
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.auth.signInWithOtp({
+        email: trimmedEmail,
+        options: {
+          shouldCreateUser: true,
+          data: {
+            full_name: trimmedName,
+            agency_name: "Your agency",
+          },
         },
-      },
-    });
-    setLoading(false);
-    if (error) {
-      setMessage(formatAuthError(error));
-      return;
+      });
+      if (error) {
+        setMessage(formatAuthError(error));
+        return;
+      }
+      savePending(SIGNUP_PENDING_KEY, { email: trimmedEmail, fullName: trimmedName });
+      window.location.href = "/signup/verify";
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "Could not send code. Try again.");
+    } finally {
+      setLoading(false);
     }
-    savePending(SIGNUP_PENDING_KEY, { email: trimmedEmail, fullName: trimmedName });
-    router.push("/signup/verify");
   };
 
   const duplicateSignup = message.includes("already exists");

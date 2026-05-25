@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   Menu,
@@ -18,7 +18,6 @@ import { BrandLogo } from "@/components/brand/brand-logo";
 import { CreditsBadge } from "@/components/billing/credits-badge";
 import { useBilling } from "@/contexts/billing-context";
 import { useCallback, useMemo, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { DASHBOARD_NAV } from "@/components/dashboard-shell/nav-config";
 import type { DashboardUser } from "@/lib/dashboard-user";
@@ -78,7 +77,6 @@ export function DashboardShell({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const router = useRouter();
   const { showPaywall } = useBilling();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -89,11 +87,8 @@ export function DashboardShell({
 
   const crumbs = useMemo(() => breadcrumbsForPath(pathname), [pathname]);
 
-  const signOut = async () => {
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    router.push("/login");
-    router.refresh();
+  const signOut = () => {
+    window.location.href = "/auth/signout";
   };
 
   const NavLink = ({ item, collapsed: c }: { item: (typeof DASHBOARD_NAV)[number]; collapsed: boolean }) => {
@@ -159,7 +154,7 @@ export function DashboardShell({
             <Settings className="h-5 w-5 shrink-0" strokeWidth={1.75} />
             {!collapsed && <span>Settings</span>}
           </Link>
-          <details className="group relative mt-2">
+          <details className="group relative mt-2" data-paywall-exempt>
             <summary
               className={cn(
                 "flex cursor-pointer list-none items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-neutral-600 hover:bg-neutral-100 [&::-webkit-details-marker]:hidden",
@@ -179,7 +174,7 @@ export function DashboardShell({
               <button
                 type="button"
                 data-paywall-exempt
-                onClick={() => void signOut()}
+                onClick={signOut}
                 className="w-full px-3 py-2 text-left text-sm text-neutral-700 hover:bg-neutral-50"
               >
                 Log out
@@ -315,6 +310,17 @@ export function DashboardShell({
               >
                 Settings
               </Link>
+              <button
+                type="button"
+                data-paywall-exempt
+                className="w-full rounded-lg px-3 py-3 text-left text-sm text-neutral-700 hover:bg-neutral-50"
+                onClick={() => {
+                  setMobileOpen(false);
+                  signOut();
+                }}
+              >
+                Log out
+              </button>
             </div>
           </div>
         </div>

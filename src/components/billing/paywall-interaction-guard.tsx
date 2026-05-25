@@ -21,6 +21,7 @@ function isExemptElement(el: Element): boolean {
 }
 
 function isInteractiveTarget(el: Element): boolean {
+  if (el.closest("[data-paywall-exempt]")) return false;
   return Boolean(
     el.closest(
       'button, a[href], input:not([type="hidden"]), select, textarea, summary, [role="button"], [role="link"], [role="menuitem"], label[for]',
