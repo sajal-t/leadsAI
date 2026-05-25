@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { oauthCallbackUrl } from "@/lib/auth-config";
+import { formatAuthError, isDuplicateSignupUser } from "@/lib/auth-messages";
 import {
   LOGIN_OTP_PENDING_KEY,
   SIGNUP_PENDING_KEY,
@@ -46,17 +47,25 @@ export function GoogleSignInButton({ label = "Continue with Google" }: { label?:
     setLoading(true);
     setMessage("");
     const supabase = createClient();
-    const { error } = await supabase.auth.signInWithOAuth({
+    const origin = typeof window !== "undefined" ? window.location.origin : undefined;
+    const { data, error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: oauthCallbackUrl("/dashboard"),
-        queryParams: { prompt: "select_account" },
+        redirectTo: oauthCallbackUrl("/dashboard", origin),
+        queryParams: { prompt: "select_account", access_type: "online" },
       },
     });
     if (error) {
-      setMessage(error.message);
+      setMessage(formatAuthError(error));
       setLoading(false);
+      return;
     }
+    if (data?.url) {
+      window.location.assign(data.url);
+      return;
+    }
+    setMessage("Could not start Google sign-in. Try again or use email.");
+    setLoading(false);
   };
 
   return (
@@ -90,7 +99,7 @@ export function LoginForm({ initialError }: { initialError?: string | null }) {
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
     if (error) {
-      setMessage(error.message);
+      setMessage(formatAuthError(error));
       setLoading(false);
       return;
     }
@@ -112,7 +121,7 @@ export function LoginForm({ initialError }: { initialError?: string | null }) {
     });
     setLoading(false);
     if (error) {
-      setMessage(error.message);
+      setMessage(formatAuthError(error));
       return;
     }
     savePending(LOGIN_OTP_PENDING_KEY, { email: trimmed });
@@ -214,6 +223,7 @@ export function SignupForm() {
     const supabase = createClient();
     const trimmedName = name.trim();
     const trimmedEmail = email.trim();
+    const origin = typeof window !== "undefined" ? window.location.origin : undefined;
     const { data, error } = await supabase.auth.signUp({
       email: trimmedEmail,
       password,
@@ -222,15 +232,16 @@ export function SignupForm() {
           full_name: trimmedName,
           agency_name: "Your agency",
         },
-        emailRedirectTo: oauthCallbackUrl("/dashboard"),
+        emailRedirectTo: oauthCallbackUrl("/dashboard", origin),
       },
     });
     if (error) {
-      const hint =
-        error.message.includes("Database error saving new user")
-          ? " Run supabase/migrations/011_fix_signup_profile_trigger.sql in the Supabase SQL Editor, then try again."
-          : "";
-      setMessage(error.message + hint);
+      setMessage(formatAuthError(error));
+      setLoading(false);
+      return;
+    }
+    if (isDuplicateSignupUser(data.user)) {
+      setMessage(formatAuthError({ message: "User already registered" }));
       setLoading(false);
       return;
     }
@@ -268,12 +279,14 @@ export function SignupForm() {
     });
     setLoading(false);
     if (error) {
-      setMessage(error.message);
+      setMessage(formatAuthError(error));
       return;
     }
     savePending(SIGNUP_PENDING_KEY, { email: trimmedEmail, fullName: trimmedName });
     router.push("/signup/verify");
   };
+
+  const duplicateSignup = message.includes("already exists");
 
   return (
     <>
@@ -333,9 +346,16 @@ export function SignupForm() {
         Sign up with email code instead
       </Button>
       {message && (
-        <p className={`mt-4 text-center text-sm ${message.includes("Check") ? "text-neutral-600" : "text-red-600"}`}>
-          {message}
-        </p>
+        <div className="mt-4 text-center text-sm">
+          <p className={message.includes("Check") ? "text-neutral-600" : "text-red-600"}>{message}</p>
+          {duplicateSignup ? (
+            <p className="mt-2">
+              <Link href="/login" className="font-medium text-blue-600 hover:underline">
+                Go to sign in
+              </Link>
+            </p>
+          ) : null}
+        </div>
       )}
       <p className="mt-8 text-center text-sm text-neutral-600">
         Already have an account?{" "}

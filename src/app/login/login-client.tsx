@@ -3,6 +3,7 @@
 import { useSearchParams } from "next/navigation";
 import { BrandLogo } from "@/components/brand/brand-logo";
 import { LoginForm } from "@/components/auth/auth-form";
+import { formatAuthError } from "@/lib/auth-messages";
 
 export function LoginPageClient() {
   const searchParams = useSearchParams();
@@ -15,7 +16,9 @@ export function LoginPageClient() {
           <BrandLogo size="lg" className="justify-center" />
           <p className="mt-3 text-sm text-neutral-500">Sign in to your workspace</p>
         </div>
-        <LoginForm initialError={error ? decodeURIComponent(error) : null} />
+        <LoginForm
+          initialError={error ? formatAuthError({ message: decodeURIComponent(error) }) : null}
+        />
       </div>
     </main>
   );

@@ -7,8 +7,15 @@ export function authRedirectBase(): string {
   return process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") || "http://localhost:3000";
 }
 
-export function oauthCallbackUrl(next = "/dashboard"): string {
-  const base = authRedirectBase();
+/**
+ * OAuth/email redirect target. Prefer the browser origin on the client so mobile
+ * matches the URL the user actually opened (Railway preview vs custom domain).
+ */
+export function oauthCallbackUrl(next = "/dashboard", requestOrigin?: string): string {
+  const base =
+    requestOrigin?.replace(/\/$/, "") ||
+    process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ||
+    "http://localhost:3000";
   const path = `/auth/callback?next=${encodeURIComponent(next)}`;
   return `${base}${path}`;
 }

@@ -6,6 +6,13 @@ export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
   const next = searchParams.get("next") ?? "/dashboard";
+  const oauthError = searchParams.get("error_description") ?? searchParams.get("error");
+
+  if (oauthError && !code) {
+    return NextResponse.redirect(
+      `${origin}/login?error=${encodeURIComponent(oauthError)}`,
+    );
+  }
 
   if (!code) {
     return NextResponse.redirect(`${origin}/login?error=missing_code`);

@@ -95,9 +95,13 @@ STRIPE_PRICE_AGENCY=price_...
 
 **Authentication → URL configuration:**
 
-- Site URL: `https://leadforgelabs.org`
-- Redirect URLs:
+- Site URL: your primary domain (e.g. `https://leadforgelabs.org`)
+- Redirect URLs — add **every** URL users open (mobile/desktop):
   - `https://leadforgelabs.org/auth/callback`
+  - `https://YOUR-PROJECT.up.railway.app/auth/callback`
+  - `http://localhost:3000/auth/callback` (local dev)
+
+Google sign-in uses the **current browser origin** for the callback. If that origin is not in this list, OAuth fails (especially on mobile).
 
 Run all SQL migrations (`supabase/migrations/001` … `014`) in the Supabase SQL editor.
 
