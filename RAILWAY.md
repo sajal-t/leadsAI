@@ -49,10 +49,13 @@ Copy from local `.env.local`, then set production values:
 # Site
 NEXT_PUBLIC_SITE_URL=https://leadforgelabs.org
 
-# Supabase
+# Supabase (required at BUILD time for Docker — login breaks if only set at runtime)
 NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
 SUPABASE_SERVICE_ROLE_KEY=eyJ...
+```
+
+**Docker / login fix:** `NEXT_PUBLIC_*` variables are embedded when `npm run build` runs. In Railway → service → **Variables**, ensure they exist **before** you deploy, then click **Redeploy**. If login says “URL and API key are required” but variables look set, the last build likely ran without them — redeploy after saving variables (the Dockerfile now fails the build if they’re missing).
 
 # Scraper (defaults are baked into Dockerfile — only change if needed)
 MAPS_SCRAPER_ENABLED=true
