@@ -19,3 +19,16 @@ export function oauthCallbackUrl(next = "/dashboard", requestOrigin?: string): s
   const path = `/auth/callback?next=${encodeURIComponent(next)}`;
   return `${base}${path}`;
 }
+
+/** Public site origin behind Railway/Vercel proxies (x-forwarded-host). */
+export function requestOriginFromHeaders(request: Request): string {
+  const url = new URL(request.url);
+  const hostHeader = request.headers.get("x-forwarded-host") ?? request.headers.get("host");
+  const host = hostHeader?.split(",")[0]?.trim();
+  if (!host) return url.origin;
+  const proto =
+    request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim() ||
+    url.protocol.replace(":", "") ||
+    "https";
+  return `${proto}://${host}`;
+}

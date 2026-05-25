@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
+import { requestOriginFromHeaders } from "@/lib/auth-config";
 import { createClient } from "@/lib/supabase/server";
 import { ensureProfile } from "@/lib/ensure-profile";
 
 export async function GET(request: Request) {
-  const { searchParams, origin } = new URL(request.url);
+  const origin = requestOriginFromHeaders(request);
+  const { searchParams } = new URL(request.url);
   const code = searchParams.get("code");
   const next = searchParams.get("next") ?? "/dashboard";
   const oauthError = searchParams.get("error_description") ?? searchParams.get("error");

@@ -39,49 +39,26 @@ function GoogleIcon() {
   );
 }
 
-export function GoogleSignInButton({ label = "Continue with Google" }: { label?: string }) {
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState("");
-
-  const signInWithGoogle = async () => {
-    setLoading(true);
-    setMessage("");
-    const supabase = createClient();
-    const origin = typeof window !== "undefined" ? window.location.origin : undefined;
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: oauthCallbackUrl("/dashboard", origin),
-        queryParams: { prompt: "select_account", access_type: "online" },
-      },
-    });
-    if (error) {
-      setMessage(formatAuthError(error));
-      setLoading(false);
-      return;
-    }
-    if (data?.url) {
-      window.location.assign(data.url);
-      return;
-    }
-    setMessage("Could not start Google sign-in. Try again or use email.");
-    setLoading(false);
-  };
+export function GoogleSignInButton({
+  label = "Continue with Google",
+  next = "/dashboard",
+}: {
+  label?: string;
+  next?: string;
+}) {
+  const googleHref = `/auth/google?next=${encodeURIComponent(next)}`;
 
   return (
-    <>
-      <Button
-        type="button"
-        variant="outline"
-        disabled={loading}
-        onClick={() => void signInWithGoogle()}
-        className="h-11 w-full rounded-full border-neutral-200 bg-white"
-      >
+    <Button
+      variant="outline"
+      className="h-11 w-full rounded-full border-neutral-200 bg-white"
+      asChild
+    >
+      <a href={googleHref} className="inline-flex items-center justify-center">
         <GoogleIcon />
-        <span className="ml-2">{loading ? "Redirecting…" : label}</span>
-      </Button>
-      {message ? <p className="mt-2 text-center text-sm text-red-600">{message}</p> : null}
-    </>
+        <span className="ml-2">{label}</span>
+      </a>
+    </Button>
   );
 }
 
